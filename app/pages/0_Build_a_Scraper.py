@@ -1,5 +1,10 @@
-import sys
+from __future__ import annotations
+import sys, os, re
 from pathlib import Path
+import streamlit as st  
+
+# st.set_page_config(page_title="Build a Scraper", page_icon="🧱", layout="wide")
+
 def _add_project_root(marker="teasy_core"):
     here = Path(__file__).resolve()
     for p in [here] + list(here.parents):
@@ -8,12 +13,22 @@ def _add_project_root(marker="teasy_core"):
                 sys.path.insert(0, str(p))
             return str(p)
     return None
+
 PROJECT_ROOT = _add_project_root()
 
-import streamlit as st
+# Demo flag: Streamlit Cloud can set TEASY_DEMO="1" in Secrets or env
+from teasy_core.config import DEMO
+DEMO_DISABLED = bool(DEMO)  # True on Cloud demo, False locally
+
+if DEMO_DISABLED:
+    st.info(
+        "Demo mode: **live fetching is disabled** on Streamlit Cloud. "
+        "You can still define selectors and **save the YAML spec**. "
+        "To fetch pages and test scrapers, clone the repo and run locally."
+    )
+
 import pandas as pd
 import yaml
-from pathlib import Path
 from bs4 import BeautifulSoup
 
 from teasy_core.extractor import extract_items, selector_diagnostics
@@ -22,7 +37,6 @@ from teasy_core.consent import KNOWN_CONSENT_XPATHS
 from teasy_core.fetcher import HybridFetcher, RequestsFetcher
 from teasy_core.postprocess import normalize_rows, REQUIRED_COLS
 from urllib.parse import urlparse
-import re
 
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 SCRAPER_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,6 +79,8 @@ def normalize_site_key(raw: str, base_url: str | None = None) -> str:
     return s or "site"
 
 def fetch_with_fallback(u: str, container_css: str, item_css: str):
+    if DEMO_DISABLED:
+        raise RuntimeError("Demo mode: fetching disabled")
     try:
         req = RequestsFetcher()
         final_url, html = req.get(u, headers={})
@@ -85,7 +101,12 @@ def fetch_with_fallback(u: str, container_css: str, item_css: str):
 
 col1, col2 = st.columns([2,1])
 with col1:
-    if st.button("Fetch page", type="primary", width='stretch'):
+    if st.button(
+        "Fetch page", type="primary", 
+        disabled=DEMO_DISABLED,
+        help="Disabled in demo mode" if DEMO_DISABLED else None,
+        width='stretch',
+    ):
         if not url.strip():
             st.warning("Provide a URL")
         else:
@@ -139,7 +160,6 @@ if st.button("Preview extraction"):
             if col not in df.columns: df[col] = None
         df = df[[c for c in REQUIRED_COLS if c in df.columns] + [c for c in df.columns if c not in REQUIRED_COLS]]
         with st.expander("Selector diagnostics"):
-            from teasy_core.extractor import selector_diagnostics
             st.json(selector_diagnostics(html_cache, fm, container_css=main_container or None, item_css=item_css or None))
         st.dataframe(df, width='stretch')
 
