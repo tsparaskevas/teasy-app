@@ -39,12 +39,6 @@ Paraskevas, T. (2025). *Teasy App* (Version 1.0.0) [Software]. GitHub. https://g
 
 👉 Try the read-only demo: **[Teasy App — Streamlit Cloud](https://teasy-app-bdpyknngneda7uqrgxbggp.streamlit.app/)**
 
-<a href="https://teasy-app-bdpyknngneda7uqrgxbggp.streamlit.app/"
-   target="_blank" rel="noopener noreferrer">
-  Teasy App — Streamlit Cloud ↗
-</a>
-
-
 **What works in the demo**
 - Browse example outputs (`data/outputs` samples)
 - View & filter data
