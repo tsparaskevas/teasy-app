@@ -1,0 +1,36 @@
+name: lifo_search
+base_url: https://www.lifo.gr
+start_url: https://www.lifo.gr/search?keyword={s}&sort_by=field_publication_date&_wrapper_format=html&page=0
+selectors:
+  title:
+    type: css
+    query: h3 a:nth-of-type(2)
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: h3 a
+  summary:
+    type: css
+    query: span.fedrabook
+pagination:
+  mode: path
+  template: https://www.lifo.gr/search?keyword={s}&sort_by=field_publication_date&_wrapper_format=html&page={page}
+  param: page
+  first_page: 0
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: div.views-row article
+search_term_mode: raw

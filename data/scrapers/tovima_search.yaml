@@ -1,0 +1,33 @@
+name: tovima_search
+base_url: https://www.tovima.gr
+start_url: https://www.tovima.gr/search/{s}/page/1/
+selectors:
+  title:
+    type: css
+    query: h3
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: null
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://www.tovima.gr/search/{s}/page/{page}/
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: 'div.simple-row '
+search_term_mode: raw

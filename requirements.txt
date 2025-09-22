@@ -1,0 +1,10 @@
+streamlit>=1.36
+pydantic>=2.8
+pandas>=2.2
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.3
+python-dateutil>=2.9
+PyYAML>=6.0.2
+selenium>=4.23
+webdriver-manager>=4.0.2

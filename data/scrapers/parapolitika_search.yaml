@@ -1,0 +1,33 @@
+name: parapolitika_search
+base_url: https://www.parapolitika.gr
+start_url: https://www.parapolitika.gr/apotelesmata-anazitisis/?q={s}&pg=1
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: null
+  section:
+    type: css
+    query: div.article__category
+pagination:
+  mode: param
+  template: null
+  param: pg
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: false
+main_container_css: null
+item_css: article
+search_term_mode: raw

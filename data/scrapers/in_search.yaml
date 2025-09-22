@@ -1,0 +1,36 @@
+name: in_search
+base_url: https://www.in.gr
+start_url: https://www.in.gr/search/{s}/page/1/
+selectors:
+  title:
+    type: css
+    query: div.wrap-mask-title a h3
+  url:
+    type: css
+    query: div.wrap-mask-title a
+    attr: href
+  date:
+    type: css
+    query: span.post-date
+    attr: null
+  section:
+    type: css
+    query: span.post-category
+  summary:
+    type: css
+    query: p.post-description
+pagination:
+  mode: path
+  template: https://www.in.gr/search/{s}/page/{page}/
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.wrap-archive-posts
+item_css: article
+search_term_mode: raw

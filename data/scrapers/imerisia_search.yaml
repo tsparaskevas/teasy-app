@@ -1,0 +1,36 @@
+name: imerisia_search
+base_url: https://www.imerisia.gr
+start_url: https://www.imerisia.gr/search?keywords={s}&_wrapper_format=html&page=0
+selectors:
+  title:
+    type: css
+    query: h4
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: div.default-cat-date span
+  summary:
+    type: css
+    query: div.default-summary
+pagination:
+  mode: path
+  template: https://www.imerisia.gr/search?keywords={s}&_wrapper_format=html&page={page}
+  param: page
+  first_page: 0
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article
+search_term_mode: raw

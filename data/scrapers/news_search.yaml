@@ -1,0 +1,36 @@
+name: news_search
+base_url: https://www.news.gr
+start_url: https://example.com/search?page=1&q={s}
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: div.article-top-meta-date
+    attr: null
+  section:
+    type: css
+    query: aside.post-meta a
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://www.news.gr/search/page/{page}/?q={s}&cat=0&start=&end=
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.main-column
+item_css: article.post
+search_term_mode: raw

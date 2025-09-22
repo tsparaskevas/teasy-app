@@ -1,0 +1,33 @@
+# --- Python cruft
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Envs & local config
+venv/
+.env
+*.env
+.streamlit/secrets.toml
+
+# --- OS cruft
+.DS_Store
+Thumbs.db
+
+# --- Logs (don't track runtime logs)
+data/logs/*
+!data/logs/.gitkeep
+
+# --- Outputs (track ONLY the 2 demo CSVs)
+data/outputs/*
+!data/outputs/protagon_search_tempi.csv
+!data/outputs/imerisia_search_tempi.csv
+!data/outputs/.gitkeep
+
+# --- Temporary / scratch
+*.tmp
+*.log
+*.bak
+*.swp

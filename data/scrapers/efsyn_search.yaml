@@ -1,0 +1,32 @@
+name: efsyn_search
+base_url: https://www.efsyn.gr
+start_url: https://www.efsyn.gr/search?keywords={s}&_wrapper_format=html&page=0
+selectors:
+  title:
+    type: css
+    query: h4
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  summary:
+    type: css
+    query: .default-summary
+pagination:
+  mode: path
+  template: https://www.efsyn.gr/search?keywords={s}&_wrapper_format=html&page={page}
+  param: page
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.default-list
+item_css: article
+search_term_mode: raw

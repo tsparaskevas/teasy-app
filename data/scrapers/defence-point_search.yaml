@@ -1,0 +1,32 @@
+name: defence-point_search
+base_url: https://www.defence-point.gr
+start_url: https://www.defence-point.gr/page/1?s={s}
+selectors:
+  title:
+    type: css
+    query: h2
+  url:
+    type: css
+    query: h2 a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: null
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://www.defence-point.gr/page/{page}?s={s}
+  param: page
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: article div#blog-post-wrapper
+item_css: div.blog-post
+search_term_mode: raw

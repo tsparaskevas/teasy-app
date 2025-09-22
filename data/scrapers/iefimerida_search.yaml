@@ -1,0 +1,33 @@
+name: iefimerida_search
+base_url: https://www.iefimerida.gr
+start_url: https://www.iefimerida.gr/search?search={s}&page=1
+selectors:
+  title:
+    type: css
+    query: a.article-link h3
+  url:
+    type: css
+    query: a.article-link
+    attr: href
+  date:
+    type: css
+    query: div.details span.time
+    attr: null
+  section:
+    type: css
+    query: div.details a
+pagination:
+  mode: path
+  template: https://www.iefimerida.gr/search?search={s}&page={page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.view-content
+item_css: article
+search_term_mode: raw

@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: "Teasy App"
+message: "If you use this app, please cite it."
+type: software
+authors:
+  - family-names: Paraskevas
+    given-names: Thodoris
+repository-code: "https://github.com/tsparaskevas/teasy-app"
+version: "1.0.0"
+date-released: "2025-09-22"
+license: MIT
+abstract: >
+  Minimal UI to build/edit/test scrapers for news-sites teaser pages with
+  Requests?Selenium fallback, consent-click handling, multi-site runs, logs,
+  and visualizations.

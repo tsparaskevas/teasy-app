@@ -1,0 +1,32 @@
+name: cretalive_search
+base_url: https://www.cretalive.gr
+start_url: https://www.cretalive.gr/search?search_term={s}&page=1
+selectors:
+  title:
+    type: css
+    query: h3
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: span.text-mainColor
+pagination:
+  mode: path
+  template: https://www.cretalive.gr/search?search_term={s}&page={page}
+  param: page
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.padv-block section.max-w-container
+item_css: article
+search_term_mode: raw

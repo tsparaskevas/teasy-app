@@ -1,0 +1,36 @@
+name: kathimerini_search
+base_url: https://www.kathimerini.gr
+start_url: https://www.kathimerini.gr/search/{s}/page/1/
+selectors:
+  title:
+    type: css
+    query: div.media-content a p.title
+  url:
+    type: css
+    query: div.media-content a
+    attr: href
+  date:
+    type: css
+    query: div.card-date
+    attr: null
+  section:
+    type: css
+    query: p.subtitle
+  summary:
+    type: css
+    query: div.content a p
+pagination:
+  mode: path
+  template: https://www.kathimerini.gr/search/{s}/page/{page}/
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.column big is-flex-wrap-wrap is-full
+item_css: div.nx-article
+search_term_mode: raw

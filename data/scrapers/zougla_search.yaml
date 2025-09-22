@@ -1,0 +1,36 @@
+name: zougla_search
+base_url: https://www.zougla.gr
+start_url: https://www.zougla.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: div.post-date
+    attr: null
+  section:
+    type: css
+    query: div.post-category
+  summary:
+    type: css
+    query: div.post-excerpt
+pagination:
+  mode: path
+  template: https://www.zougla.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.left-part
+item_css: article
+search_term_mode: raw

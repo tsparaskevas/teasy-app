@@ -1,0 +1,36 @@
+name: documentonews_search
+base_url: https://www.documentonews.gr
+start_url: https://www.documentonews.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: a.title
+  url:
+    type: css
+    query: a.title
+    attr: href
+  date:
+    type: css
+    query: span.date
+    attr: null
+  section:
+    type: css
+    query: a.category
+  summary:
+    type: css
+    query: span.excerpt
+pagination:
+  mode: path
+  template: https://www.documentonews.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.articles
+item_css: div.article
+search_term_mode: raw

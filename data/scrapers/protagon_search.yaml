@@ -1,0 +1,33 @@
+name: protagon_search
+base_url: https://www.protagon.gr
+start_url: https://www.protagon.gr/page/1?user=%CE%A3%CF%85%CE%BD%CF%84%CE%AC%CE%BA%CF%84%CE%B7%CF%82&sdate&s={s}&submit=%CE%91%CE%BD%CE%B1%CE%B6%CE%AE%CF%84%CE%B7%CF%83%CE%B7
+selectors:
+  title:
+    type: css
+    query: h2 a
+  url:
+    type: css
+    query: h2 a
+    attr: href
+  date:
+    type: css
+    query: span.nomobile
+    attr: null
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://www.protagon.gr/page/{page}?user=%CE%A3%CF%85%CE%BD%CF%84%CE%AC%CE%BA%CF%84%CE%B7%CF%82&sdate&s={s}&submit=%CE%91%CE%BD%CE%B1%CE%B6%CE%AE%CF%84%CE%B7%CF%83%CE%B7
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article
+search_term_mode: raw

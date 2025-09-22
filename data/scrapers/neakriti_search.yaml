@@ -1,0 +1,33 @@
+name: neakriti_search
+base_url: https://www.neakriti.gr
+start_url: https://www.neakriti.gr/search?keywords={s}&_wrapper_format=html&page=0
+selectors:
+  title:
+    type: css
+    query: h4
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: span.default-category
+pagination:
+  mode: path
+  template: https://www.neakriti.gr/search?keywords={s}&_wrapper_format=html&page={page}
+  param: page
+  first_page: 0
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article.default-teaser
+search_term_mode: raw

@@ -1,0 +1,36 @@
+name: europost_search
+base_url: https://europost.gr
+start_url: https://europost.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h2 a
+  url:
+    type: css
+    query: h2 a
+    attr: href
+  date:
+    type: css
+    query: span.date
+    attr: null
+  section:
+    type: css
+    query: span.post-cat
+  summary:
+    type: css
+    query: p.post-excerpt
+pagination:
+  mode: path
+  template: https://europost.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: ul.post-items
+item_css: li.post-item
+search_term_mode: raw

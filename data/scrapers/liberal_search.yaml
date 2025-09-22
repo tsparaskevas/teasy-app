@@ -1,0 +1,33 @@
+name: liberal_search
+base_url: https://www.liberal.gr
+start_url: https://www.liberal.gr/search/node?search_keys={s}&_wrapper_format=html&page=0
+selectors:
+  title:
+    type: css
+    query: div.article__title
+  url:
+    type: css
+    query: div.article__info a
+    attr: href
+  date:
+    type: css
+    query: div.article__info a
+    attr: null
+  summary:
+    type: css
+    query: div.article__descr
+pagination:
+  mode: path
+  template: https://www.liberal.gr/search/node?search_keys={s}&_wrapper_format=html&page={page}
+  param: page
+  first_page: 0
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: div.article
+search_term_mode: raw

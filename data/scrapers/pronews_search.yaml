@@ -1,0 +1,33 @@
+name: pronews_search
+base_url: https://www.pronews.gr
+start_url: https://www.pronews.gr/search/{s}/page/1/
+selectors:
+  title:
+    type: css
+    query: a.article-link
+  url:
+    type: css
+    query: a.article-link
+    attr: href
+  date:
+    type: css
+    query: span.post-date
+    attr: null
+  section:
+    type: css
+    query: span.pronews_cat a
+pagination:
+  mode: path
+  template: https://www.pronews.gr/search/{s}/page/{page}/
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article
+search_term_mode: raw

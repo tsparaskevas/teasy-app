@@ -1,0 +1,33 @@
+name: to10_search
+base_url: https://www.to10.gr
+start_url: https://www.to10.gr/page/1/?s=[s}
+selectors:
+  title:
+    type: css
+    query: h3
+  url:
+    type: css
+    query: a.relative-article
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: null
+  section:
+    type: css
+    query: span.post-category
+pagination:
+  mode: path
+  template: https://www.to10.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: div.is-half
+search_term_mode: raw

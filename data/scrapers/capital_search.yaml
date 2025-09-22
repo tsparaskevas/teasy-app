@@ -1,0 +1,32 @@
+name: capital_search
+base_url: https://www.capital.gr
+start_url: https://www.capital.gr/search/?query={s}&page={page}&sort=dateDesc
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: h5
+    attr: null
+  summary:
+    type: css
+    query: div.item__description
+pagination:
+  mode: param
+  template: null
+  param: page
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.articles__list
+item_css: div.article
+search_term_mode: raw

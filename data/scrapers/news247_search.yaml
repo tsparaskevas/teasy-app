@@ -1,0 +1,33 @@
+name: news247_search
+base_url: https://www.news247.gr
+start_url: https://www.news247.gr/search/{s}/page/1
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: div.post__category span
+    attr: null
+  section:
+    type: css
+    query: h4 a
+pagination:
+  mode: path
+  template: https://www.news247.gr/search/{s}/page/{page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: section.category__posts
+item_css: article
+search_term_mode: raw

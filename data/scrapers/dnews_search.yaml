@@ -1,0 +1,36 @@
+name: dnews.gr_search
+base_url: https://www.dnews.gr
+start_url: https://www.dnews.gr/site/search/%CE%A4%CE%AD%CE%BC%CF%80%CE%B7?start=0
+selectors:
+  title:
+    type: css
+    query: h2 a
+  url:
+    type: css
+    query: h2 a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: a.itemCategory
+  summary:
+    type: css
+    query: div.itemIntroText
+pagination:
+  mode: param
+  template: null
+  param: start
+  first_page: 0
+  per_page: 31
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.items
+item_css: div.item
+search_term_mode: raw

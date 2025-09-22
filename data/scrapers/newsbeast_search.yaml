@@ -1,0 +1,32 @@
+name: newsbeast_search
+base_url: https://www.newsbeast.gr
+start_url: https://www.newsbeast.gr/tag/{s}/page/1
+selectors:
+  title:
+    type: css
+    query: h2
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+pagination:
+  mode: path
+  template: https://www.newsbeast.gr/tag/{s}/page/{page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article.articleCard
+search_term_mode: raw
+search_term_map:
+  Τέμπη: dustuxima-sta-tempi

@@ -1,0 +1,33 @@
+name: euro2day_search
+base_url: https://www.euro2day.gr
+start_url: https://www.euro2day.gr/SearchRes.aspx?q={s}&p=1
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: p.date
+    attr: null
+  summary:
+    type: css
+    query: p.description
+pagination:
+  mode: path
+  template: https://www.euro2day.gr/SearchRes.aspx?q={s}&p={page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.list-content
+item_css: div.list-item
+search_term_mode: raw

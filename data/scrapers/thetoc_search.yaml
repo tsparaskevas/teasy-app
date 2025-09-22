@@ -1,0 +1,36 @@
+name: thetoc_search
+base_url: https://www.thetoc.gr
+start_url: https://www.thetoc.gr/search/{s}/?page=1
+selectors:
+  title:
+    type: css
+    query: h4 a
+  url:
+    type: css
+    query: h4 a
+    attr: href
+  date:
+    type: css
+    query: span.date
+    attr: null
+  section:
+    type: css
+    query: div.item-image a
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://www.thetoc.gr/search/{s}/?page={page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: div.item
+search_term_mode: raw

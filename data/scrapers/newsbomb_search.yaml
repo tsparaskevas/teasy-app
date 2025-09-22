@@ -1,0 +1,36 @@
+name: newsbomb_search
+base_url: https://www.newsbomb.gr
+start_url: https://www.newsbomb.gr/search?q={s}&page=1
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: span.item-date
+    attr: null
+  section:
+    type: css
+    query: span.item-category
+  summary:
+    type: css
+    query: div.item-intro
+pagination:
+  mode: path
+  template: https://www.newsbomb.gr/search?q={s}&page={page}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.news-items
+item_css: div.item-info
+search_term_mode: raw

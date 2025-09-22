@@ -1,0 +1,33 @@
+name: thestival_search
+base_url: https://www.thestival.gr
+start_url: https://www.thestival.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h2 a
+  url:
+    type: css
+    query: h2 a
+    attr: href
+  date:
+    type: css
+    query: span.date
+    attr: null
+  section:
+    type: css
+    query: a.meta-category-link
+pagination:
+  mode: path
+  template: https://www.thestival.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: article
+search_term_mode: raw

@@ -1,0 +1,32 @@
+name: pelop_search
+base_url: https://pelop.gr
+start_url: https://pelop.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h3
+  url:
+    type: css
+    query: a.article-link
+    attr: href
+  section:
+    type: css
+    query: span.cat
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: path
+  template: https://pelop.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.results-article-list
+item_css: div.result-article
+search_term_mode: raw

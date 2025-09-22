@@ -1,0 +1,32 @@
+name: cnn_search
+base_url: https://www.cnn.gr
+start_url: https://www.cnn.gr/search?q={s}&page=1
+selectors:
+  title:
+    type: css
+    query: h3.item-title
+  url:
+    type: css
+    query: 'a.item-link '
+    attr: href
+  date:
+    type: css
+    query: span.item-date
+    attr: null
+  section:
+    type: css
+    query: span.item-category
+pagination:
+  mode: path
+  template: https://www.cnn.gr/search?q={s}&page={page}
+  param: page
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: .list-items
+item_css: .gtr
+search_term_mode: raw

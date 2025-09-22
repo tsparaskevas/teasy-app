@@ -1,0 +1,34 @@
+name: athensvoice_search
+base_url: https://www.athensvoice.gr
+start_url: https://www.athensvoice.gr/search/?pg=1&q={s}&section=Articles
+selectors:
+  title:
+    type: css
+    query: div.article__content a.article__title
+  url:
+    type: css
+    query: div.article__content a.article__title
+    attr: href
+  date:
+    type: css
+    query: div.article__content div.article__info time
+    attr: datetime
+  section:
+    type: css
+    query: div.article__content a.article__category
+  summary:
+    type: css
+    query: div.article__content p
+pagination:
+  mode: param
+  template: null
+  param: pg
+  first_page: 1
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+search_term_mode: raw
+search_term_map: {}

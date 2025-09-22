@@ -1,0 +1,36 @@
+name: newmoney_search
+base_url: https://www.newmoney.gr
+start_url: https://www.newmoney.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h2
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: null
+  section:
+    type: css
+    query: h3
+  summary:
+    type: css
+    query: div.lead
+pagination:
+  mode: path
+  template: https://www.newmoney.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: div.card-wrapper
+search_term_mode: raw
