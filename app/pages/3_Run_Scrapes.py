@@ -1,5 +1,9 @@
+
+from __future__ import annotations
 import sys
+import re
 from pathlib import Path
+
 def _add_project_root(marker="teasy_core"):
     here = Path(__file__).resolve()
     for p in [here] + list(here.parents):
@@ -8,26 +12,35 @@ def _add_project_root(marker="teasy_core"):
                 sys.path.insert(0, str(p))
             return str(p)
     return None
+
 PROJECT_ROOT = _add_project_root()
 
 import streamlit as st
 import yaml, pandas as pd
-from pathlib import Path
 
+from teasy_core.config import DEMO                   # ← demo flag (Cloud via Secrets/env)
 from teasy_core.models import ScraperSpec
 from teasy_core.runner import run_scraper, slug_from_term, planned_urls
 from teasy_core.storage import save_or_merge_csv
 from teasy_core.postprocess import REQUIRED_COLS
 from teasy_core.logger import append_run_log
 from urllib.parse import urlparse
-import re
 
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
-OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "outputs"
-LOGS_CSV = Path(__file__).resolve().parents[2] / "data" / "logs" / "runs.csv"
+OUTPUT_DIR  = Path(__file__).resolve().parents[2] / "data" / "outputs"
+LOGS_CSV    = Path(__file__).resolve().parents[2] / "data" / "logs" / "runs.csv"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 st.title("3 · Run Scrapes")
+
+# Demo guard (Cloud)
+DEMO_DISABLED = bool(DEMO)
+if DEMO_DISABLED:
+    st.info(
+        "Demo mode: **live scraping is disabled** on Streamlit Cloud. "
+        "You can still select specs and preview planned URLs. "
+        "To run scrapes, clone the repo and run locally."
+    )
 
 target_cat = st.selectbox("Category to run", ["all","search","opinion"], index=1)
 
@@ -132,7 +145,8 @@ search_term_global = ""
 if target_cat == "search":
     search_term_global = st.text_input("Search term", "Τέμπη")
 
-if st.button("Run", type="primary"):
+if st.button("Run", type="primary", disabled=DEMO_DISABLED or not chosen,
+    help="Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec"):
     for name, spec in specs:
         if name not in chosen:
             continue
