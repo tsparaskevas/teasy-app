@@ -35,6 +35,7 @@ Paraskevas, T. (2025). *Teasy App* (Version 1.0.0) [Software]. GitHub. https://g
 }
 ```
 
+
 ## Live demo (Streamlit Community Cloud)
 
 👉 Try the read-only demo: **[Teasy App — Streamlit Cloud](https://teasy-app-bdpyknngneda7uqrgxbggp.streamlit.app/)**
