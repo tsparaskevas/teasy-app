@@ -1,5 +1,7 @@
+from __future__ import annotations
 import sys
 from pathlib import Path
+
 def _add_project_root(marker="teasy_core"):
     here = Path(__file__).resolve()
     for p in [here] + list(here.parents):
@@ -8,10 +10,13 @@ def _add_project_root(marker="teasy_core"):
                 sys.path.insert(0, str(p))
             return str(p)
     return None
+
 PROJECT_ROOT = _add_project_root()
 
 import streamlit as st
 import yaml, pandas as pd
+
+from teasy_core.config import DEMO  # <-- demo flag (Cloud via Secrets/env)
 from teasy_core.models import ScraperSpec
 from teasy_core.runner import run_scraper, planned_urls, slug_from_term
 from teasy_core.postprocess import REQUIRED_COLS
@@ -19,6 +24,15 @@ from teasy_core.postprocess import REQUIRED_COLS
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 
 st.title("2 · Test Scraper")
+
+# Demo guard (Cloud)
+DEMO_DISABLED = bool(DEMO)
+if DEMO_DISABLED:
+    st.info(
+        "Demo mode: **live scraping is disabled** on Streamlit Cloud. "
+        "You can still preview planned URLs. "
+        "To run tests, clone the repo and run locally."
+    )
 
 files = sorted(SCRAPER_DIR.glob("*.yaml"))
 if not files:
@@ -105,7 +119,8 @@ with st.expander("Planned URLs"):
     for u in urls:
         st.write(u)
 
-if st.button("Run test", type="primary"):
+if st.button("Run test", type="primary", disabled=DEMO_DISABLED,
+    help="Disabled in demo mode" if DEMO_DISABLED else None,):
     # Apply the effective start page in-memory so the runner’s relative math aligns
     spec.pagination.first_page = int(start_from)
 
