@@ -145,9 +145,6 @@ search_term_global = ""
 if target_cat == "search":
     search_term_global = st.text_input("Search term", "Τέμπη")
 
-# if st.button("Run", type="primary", disabled=DEMO_DISABLED or not chosen,
-#     help="Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec"):
-
 help_msg = "Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec")
 disabled_flag = DEMO_DISABLED or (len(chosen) == 0)
 
