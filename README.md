@@ -24,7 +24,7 @@ If you use this app, please cite:
 
 Paraskevas, T. (2025). *Teasy App* (Version 1.0.0) [Software]. GitHub. https://github.com/tsparaskevas/teasy-app
 
-```bibtext
+```bibtex
 @software{Paraskevas_Teasy_App_2025,
   author  = {Paraskevas, Thodoris},
   title   = {Teasy App},
@@ -33,7 +33,6 @@ Paraskevas, T. (2025). *Teasy App* (Version 1.0.0) [Software]. GitHub. https://g
   url     = {https://github.com/tsparaskevas/teasy-app},
   note    = {Software}
 }
-```
 
 ## License
 MIT - see the [LICENSE](LICENSE) file for details.
