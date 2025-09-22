@@ -32,7 +32,7 @@ Paraskevas, T. (2025). *Teasy App* (Version 1.0.0) [Software]. GitHub. https://g
   version = {1.0.0},
   url     = {https://github.com/tsparaskevas/teasy-app},
   note    = {Software}
-}
+}```
 
 ## License
 MIT - see the [LICENSE](LICENSE) file for details.
