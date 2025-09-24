@@ -17,6 +17,14 @@ PROJECT_ROOT = _add_project_root()
 
 import streamlit as st
 import yaml, pandas as pd
+<<<<<<< HEAD
+=======
+from pathlib import Path
+from urllib.parse import urlparse
+import re
+import concurrent.futures
+import traceback
+>>>>>>> a6016a4 (Local updates)
 
 from teasy_core.config import DEMO                   # ← demo flag (Cloud via Secrets/env)
 from teasy_core.models import ScraperSpec
@@ -24,7 +32,10 @@ from teasy_core.runner import run_scraper, slug_from_term, planned_urls
 from teasy_core.storage import save_or_merge_csv
 from teasy_core.postprocess import REQUIRED_COLS
 from teasy_core.logger import append_run_log
+<<<<<<< HEAD
 from urllib.parse import urlparse
+=======
+>>>>>>> a6016a4 (Local updates)
 
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 OUTPUT_DIR  = Path(__file__).resolve().parents[2] / "data" / "outputs"
@@ -65,7 +76,7 @@ def normalize_site_key(raw: str, base_url: str | None = None) -> str:
     # drop www.
     if s.startswith("www."):
         s = s[4:]
-    # if it looks like a domain, take the first label (e.g., dnews.gr -> dnews, www.kathimerini.gr -> kathimerini)
+    # if it looks like a domain, take the first label (e.g., dnews.gr -> dnews)
     if "." in s:
         parts = [p for p in s.split(".") if p]
         if parts and parts[0] == "www":
@@ -90,6 +101,7 @@ def normalized_base_name(spec) -> str:
     site = normalize_site_key(raw_site, base_url=str(spec.base_url))
     return f"{site}_{cat}"
 
+# collect specs by selected category
 specs = []
 for fp in all_files:
     try:
@@ -141,10 +153,17 @@ auto_all_if_not_chrono = st.checkbox(
     help="If a spec's results are not newest-first, ignore the numeric page limit and scrape until an empty page."
 )
 
+per_site_timeout = st.number_input(
+    "Per-site timeout (seconds)",
+    min_value=30, max_value=3600, value=180,
+    help="If a site takes longer than this, we mark it as 'timeout' and continue with the next one."
+)
+
 search_term_global = ""
 if target_cat == "search":
     search_term_global = st.text_input("Search term", "Τέμπη")
 
+<<<<<<< HEAD
 help_msg = "Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec")
 disabled_flag = DEMO_DISABLED or (len(chosen) == 0)
 
@@ -159,6 +178,9 @@ if run_clicked:
     for name, spec in specs:
         if name not in chosen:
             continue        
+=======
+if st.button("Run", type="primary", disabled=not chosen):
+>>>>>>> a6016a4 (Local updates)
     for name, spec in specs:
         if name not in chosen:
             continue
@@ -167,6 +189,7 @@ if run_clicked:
         slug_part = ""
         term_in = ""
         term_used = ""
+
         if spec.category == "search":
             term_in = search_term_global
             term_used, slug = slug_from_term(spec, term_in)
@@ -205,6 +228,9 @@ if run_clicked:
         else:
             pages_label = str(effective_pages or 1)
 
+        base_norm = normalized_base_name(spec)          # <-- define before running
+        out_name = f"{base_norm}{slug_part}.csv"        # <-- real file we will write/log
+
         st.info(
             f"Scraping **{spec.name}** — pages: {pages_label}"
             + (f" — term: '{term_in}' → '{term_used}', slug: '{slug_part[1:]}'" if spec.category=='search' else "")
@@ -216,42 +242,66 @@ if run_clicked:
         status = "ok"
         msg = ""
         rows = 0
+
+        # Run with timeout so a stuck site doesn't block all others
         try:
-            df = run_scraper(
-                spec,
-                vars=vars,
-                pages=effective_pages,
-                fetch_all=effective_fetch_all,
-                page_from=effective_page_from,
-                page_to=effective_page_to,
-            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(
+                    run_scraper,
+                    spec,
+                    vars=vars,
+                    pages=effective_pages,
+                    fetch_all=effective_fetch_all,
+                    page_from=effective_page_from,
+                    page_to=effective_page_to,
+                )
+                df = fut.result(timeout=per_site_timeout)
+
             rows = len(df)
+
+            # Ensure required cols exist & order columns
             for col in REQUIRED_COLS:
-                if col not in df.columns: df[col] = None
+                if col not in df.columns:
+                    df[col] = None
             df = df[[c for c in REQUIRED_COLS if c in df.columns] + [c for c in df.columns if c not in REQUIRED_COLS]]
 
-            base_norm = normalized_base_name(spec)
-            out_name = f"{base_norm}{slug_part}.csv"
+            # Save/merge
             before, added, total = save_or_merge_csv(df, OUTPUT_DIR / out_name)
-            st.success(f"{base_norm} ? +{added} / total {total} rows ? saved to data/outputs/{out_name}")
+            st.success(f"{base_norm} — +{added} / total {total} rows ✅ saved to data/outputs/{out_name}")
             msg = f"added={added}, total={total}"
+
+        except concurrent.futures.TimeoutError:
+            status = "timeout"
+            msg = f"Timed out after {per_site_timeout}s"
+            st.error(f"{spec.name} ⏱ {msg}")
+
         except Exception as e:
             status = "fail"
-            msg = str(e)
+            msg = f"{type(e).__name__}: {e}"
             st.error(f"{spec.name} failed: {e}")
+            # Show the tail of the traceback for quick debugging
+            tb = "".join(traceback.format_exc())
+            st.code(tb[-1200:])  # last ~1200 chars
 
-        append_run_log(
-            LOGS_CSV,
-            spec_name=base_norm,
-            category=spec.category,
-            pages=pages_label,
-            term_in=(term_in if spec.category=="search" else ""),
-            term_used=(term_used if spec.category=="search" else ""),
-            output_csv=(f"{spec.name}{slug_part}.csv"),
-            rows=rows,
-            status=status,
-            message=msg,
-        )
+        finally:
+            # Always append a log row so you can see which site stalled/failed
+            try:
+                append_run_log(
+                    LOGS_CSV,
+                    spec_name=base_norm,
+                    category=spec.category,
+                    pages=pages_label,
+                    term_in=(term_in if spec.category=="search" else ""),
+                    term_used=(term_used if spec.category=="search" else ""),
+                    output_csv=out_name,     # <-- fixed (was spec.name...)
+                    rows=rows,
+                    status=status,
+                    message=msg,
+                )
+            except Exception as e_log:
+                st.warning(f"Could not write run log for {spec.name}: {e_log}")
+
+        st.divider()
 
     st.info("Done.")
 

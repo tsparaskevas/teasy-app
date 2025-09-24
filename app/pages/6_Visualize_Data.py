@@ -18,6 +18,17 @@ PROJECT_ROOT = _find_project_root()
 DEFAULT_OUTPUTS = PROJECT_ROOT / "data" / "outputs"
 
 # ---------- Filename parsing ----------
+# def _parse_row(fp: Path) -> Optional[dict]:
+#     if fp.suffix.lower() != ".csv":
+#         return None
+#     parts = fp.stem.split("_")
+#     if len(parts) < 2:
+#         return None
+#     site = parts[0]
+#     category = parts[1]
+#     slug = parts[2] if len(parts) >= 3 else None
+#     return {"path": str(fp), "site": site, "category": category, "slug": slug}
+
 def _parse_row(fp: Path) -> Optional[dict]:
     if fp.suffix.lower() != ".csv":
         return None
@@ -25,8 +36,8 @@ def _parse_row(fp: Path) -> Optional[dict]:
     if len(parts) < 2:
         return None
     site = parts[0]
-    category = parts[1]
-    slug = parts[2] if len(parts) >= 3 else None
+    category = parts[1].lower()             # normalize: 'search' / 'all' / 'opinion'
+    slug = "_".join(parts[2:]) if len(parts) > 2 else None  # keep full slug even if it has underscores
     return {"path": str(fp), "site": site, "category": category, "slug": slug}
 
 @st.cache_data(show_spinner=False)

@@ -17,6 +17,8 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from .utils import user_agent
 
+
+
 class Fetcher(Protocol):
     def get(self, url: str, headers: Dict[str, str] | None = None, **kwargs) -> tuple[str, str]: ...
 
