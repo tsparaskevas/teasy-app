@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import sys
 import re
@@ -17,25 +16,16 @@ PROJECT_ROOT = _add_project_root()
 
 import streamlit as st
 import yaml, pandas as pd
-<<<<<<< HEAD
-=======
-from pathlib import Path
 from urllib.parse import urlparse
-import re
 import concurrent.futures
 import traceback
->>>>>>> a6016a4 (Local updates)
 
-from teasy_core.config import DEMO                   # ← demo flag (Cloud via Secrets/env)
+from teasy_core.config import DEMO                   # demo flag (Cloud via Secrets/env)
 from teasy_core.models import ScraperSpec
 from teasy_core.runner import run_scraper, slug_from_term, planned_urls
 from teasy_core.storage import save_or_merge_csv
 from teasy_core.postprocess import REQUIRED_COLS
 from teasy_core.logger import append_run_log
-<<<<<<< HEAD
-from urllib.parse import urlparse
-=======
->>>>>>> a6016a4 (Local updates)
 
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 OUTPUT_DIR  = Path(__file__).resolve().parents[2] / "data" / "outputs"
@@ -60,10 +50,9 @@ if not all_files:
     st.info("No specs found. Create one in '0 · Build'.")
     st.stop()
 
-def _load(path):
-    import yaml as _y
-    from teasy_core.models import ScraperSpec as _S
-    return _S.model_validate(_y.safe_load(path.read_text(encoding="utf-8")))
+def _load(path: Path) -> ScraperSpec:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return ScraperSpec.model_validate(data)
 
 def normalize_site_key(raw: str, base_url: str | None = None) -> str:
     s = (raw or "").strip().lower()
@@ -87,7 +76,7 @@ def normalize_site_key(raw: str, base_url: str | None = None) -> str:
     s = re.sub(r"[^a-z0-9_-]+", "", s)
     return s or "site"
 
-def normalized_base_name(spec) -> str:
+def normalized_base_name(spec: ScraperSpec) -> str:
     """
     Turn spec.name like 'dnews.gr_search' into 'dnews_search'
     without requiring you to recreate the YAML.
@@ -102,7 +91,7 @@ def normalized_base_name(spec) -> str:
     return f"{site}_{cat}"
 
 # collect specs by selected category
-specs = []
+specs: list[tuple[str, ScraperSpec]] = []
 for fp in all_files:
     try:
         sp = _load(fp)
@@ -126,9 +115,9 @@ page_mode = st.radio(
     horizontal=True
 )
 
-pages_to_fetch = None
-page_from = None
-page_to = None
+pages_to_fetch: int | None = None
+page_from: int | None = None
+page_to: int | None = None
 fetch_all = False
 
 if page_mode == "Limit to N":
@@ -163,7 +152,7 @@ search_term_global = ""
 if target_cat == "search":
     search_term_global = st.text_input("Search term", "Τέμπη")
 
-<<<<<<< HEAD
+# Run button (disabled in demo / when no selection)
 help_msg = "Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec")
 disabled_flag = DEMO_DISABLED or (len(chosen) == 0)
 
@@ -177,15 +166,9 @@ run_clicked = st.button(
 if run_clicked:
     for name, spec in specs:
         if name not in chosen:
-            continue        
-=======
-if st.button("Run", type="primary", disabled=not chosen):
->>>>>>> a6016a4 (Local updates)
-    for name, spec in specs:
-        if name not in chosen:
             continue
 
-        vars = {}
+        vars: dict[str, str] = {}
         slug_part = ""
         term_in = ""
         term_used = ""
@@ -228,8 +211,8 @@ if st.button("Run", type="primary", disabled=not chosen):
         else:
             pages_label = str(effective_pages or 1)
 
-        base_norm = normalized_base_name(spec)          # <-- define before running
-        out_name = f"{base_norm}{slug_part}.csv"        # <-- real file we will write/log
+        base_norm = normalized_base_name(spec)          # define before running
+        out_name = f"{base_norm}{slug_part}.csv"        # real file we will write/log
 
         st.info(
             f"Scraping **{spec.name}** — pages: {pages_label}"
@@ -293,7 +276,7 @@ if st.button("Run", type="primary", disabled=not chosen):
                     pages=pages_label,
                     term_in=(term_in if spec.category=="search" else ""),
                     term_used=(term_used if spec.category=="search" else ""),
-                    output_csv=out_name,     # <-- fixed (was spec.name...)
+                    output_csv=out_name,     # actual filename
                     rows=rows,
                     status=status,
                     message=msg,
