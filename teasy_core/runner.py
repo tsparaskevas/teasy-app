@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Callable
+from pathlib import Path
+from datetime import datetime
 from urllib.parse import quote_plus, urlparse, parse_qsl, urlencode, urlunparse
 import pandas as pd
 import re
@@ -161,6 +163,7 @@ def run_scraper(
     page_from: Optional[int] = None,
     page_to: Optional[int] = None,
     hard_max_pages: int = 1000,
+    progress: Optional[Callable[[dict], None]] = None,
 ) -> pd.DataFrame:
     """
     Supports three modes:
@@ -173,31 +176,68 @@ def run_scraper(
 
     start_page = page_from if page_from is not None else spec.pagination.first_page
 
+    # === incremental saving setup ===
+    # Data directory: repo_root/data/outputs/_partial/<spec-name>_<run-id>.csv
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    repo_root = Path(__file__).resolve().parents[2]
+    partial_dir = repo_root / "data" / "outputs" / "_partial"
+    partial_dir.mkdir(parents=True, exist_ok=True)
+    partial_path = partial_dir / f"{slugify(spec.name)}_{run_id}.csv"
+
+    def _append_partial(rows: List[Dict]) -> None:
+        if not rows:
+            return
+        dfp = pd.DataFrame(rows)
+        # write header only on first write
+        header = not partial_path.exists()
+        dfp.to_csv(partial_path, mode="a", header=header, index=False, encoding="utf-8")
+        if progress:
+            progress({"event": "partial_append", "rows": len(dfp), "file": str(partial_path)})
+
     if fetch_all:
         fetched = 0
         while True:
             current = start_page + fetched
             if page_to is not None and current > page_to:
                 break
-            final_url, html = fetcher.get(
-                page_url(spec, current, vars),
-                headers=spec.headers,
-                wait_for_css=(spec.item_css or spec.main_container_css or None),
-                wait_timeout=20,
-            )
+            target_url = page_url(spec, current, vars)
+            if progress:
+                progress({"event":"fetch_start","page": current, "url": target_url, "site": spec.name})
+            try:
+                final_url, html = fetcher.get(
+                    target_url,
+                    headers=spec.headers,
+                    wait_for_css=(spec.item_css or spec.main_container_css or None),
+                    wait_timeout=20,
+                )
+            except Exception as e:
+                # If we already fetched some pages and we're in "ALL" mode,
+                # treat a timeout/404 as "we reached the end" instead of failing the whole site.
+                is_timeout = e.__class__.__name__.lower().endswith("timeout")
+                is_http404 = getattr(getattr(e, "response", None), "status_code", None) == 404
+                if fetched > 0 and (is_timeout or is_http404):
+                    if progress:
+                        progress({"event":"assume_end","page": current, "url": target_url, "reason": str(e)})
+                    break
+                raise
             rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
             rows = normalize_rows(rows, base_url=final_url)
             if not rows:
                 break
             all_rows.extend(rows)
+            # incremental checkpoint
+            _append_partial(rows)
             fetched += 1
             if fetched >= hard_max_pages:
                 break
 
     elif page_from is not None and page_to is not None:
         for p in range(page_from, page_to + 1):
+            target_url = page_url(spec, p, vars)
+            if progress:
+                progress({"event":"fetch_start","page": p, "url": target_url, "site": spec.name})
             final_url, html = fetcher.get(
-                page_url(spec, p, vars),
+                target_url,
                 headers=spec.headers,
                 wait_for_css=(spec.item_css or spec.main_container_css or None),
                 wait_timeout=20,
@@ -205,14 +245,18 @@ def run_scraper(
             rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
             rows = normalize_rows(rows, base_url=final_url)
             all_rows.extend(rows)
+            _append_partial(rows)
 
     else:
         if not pages:
             pages = 1
         for i in range(pages):
             p = start_page + i
+            target_url = page_url(spec, p, vars)
+            if progress:
+                progress({"event":"fetch_start","page": p, "url": target_url, "site": spec.name})
             final_url, html = fetcher.get(
-                page_url(spec, p, vars),
+                target_url,
                 headers=spec.headers,
                 wait_for_css=(spec.item_css or spec.main_container_css or None),
                 wait_timeout=20,
@@ -220,9 +264,10 @@ def run_scraper(
             rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
             rows = normalize_rows(rows, base_url=final_url)
             all_rows.extend(rows)
+            _append_partial(rows)
 
     df = pd.DataFrame(all_rows)
     if "url" in df.columns:
-        df = df.drop_duplicates(subset=["url"], keep="first")
+        df = df.drop_duplicates(subset=["url"], keep="last")
     return df
 

@@ -19,6 +19,7 @@ import yaml, pandas as pd
 from urllib.parse import urlparse
 import concurrent.futures
 import traceback
+from queue import SimpleQueue, Empty
 
 from teasy_core.config import DEMO                   # demo flag (Cloud via Secrets/env)
 from teasy_core.models import ScraperSpec
@@ -225,6 +226,16 @@ if run_clicked:
         status = "ok"
         msg = ""
         rows = 0
+        events = SimpleQueue()
+        last_partial = {"file": None}
+        def _on_progress(ev: dict):
+            try:
+                events.put_nowait(ev)
+                if ev.get("event") == "partial_append" and ev.get("file"):
+                    # remember where runner is appending
+                    last_partial["file"] = ev["file"]
+            except Exception:
+                pass
 
         # Run with timeout so a stuck site doesn't block all others
         try:
@@ -237,6 +248,7 @@ if run_clicked:
                     fetch_all=effective_fetch_all,
                     page_from=effective_page_from,
                     page_to=effective_page_to,
+                    progress=_on_progress,
                 )
                 df = fut.result(timeout=per_site_timeout)
 
@@ -257,11 +269,44 @@ if run_clicked:
             status = "timeout"
             msg = f"Timed out after {per_site_timeout}s"
             st.error(f"{spec.name} ⏱ {msg}")
+            # If we have a partial file, merge it so rows are not lost
+            try:
+                if last_partial["file"]:
+                    st.info("Merging rows from partial file created before timeout…")
+                    dfp = pd.read_csv(last_partial["file"])
+                    # Ensure required columns exist; drop dupes by URL if present
+                    for col in REQUIRED_COLS:
+                        if col not in dfp.columns:
+                            dfp[col] = None
+                    if "url" in dfp.columns:
+                        dfp = dfp.drop_duplicates(subset=["url"], keep="first")
+                    before, added, total = save_or_merge_csv(dfp, OUTPUT_DIR / out_name)
+                    st.success(f"{base_norm} — +{added} / total {total} rows ✅ (from partial)")
+            except Exception as e_part:
+                st.warning(f"Could not merge partial rows: {e_part}")
+            last = None
+            try:
+                while True:
+                    last = events.get_nowait()
+            except Empty:
+                pass
+            if last and last.get("event") == "fetch_start":
+                st.warning(f"Last URL before timeout: {last.get('url')}  (page {last.get('page')})")
 
         except Exception as e:
             status = "fail"
             msg = f"{type(e).__name__}: {e}"
-            st.error(f"{spec.name} failed: {e}")
+            st.error(f"{spec.name} ⏱ {msg}")
+            # Drain queue to get the latest started URL
+            last = None
+            try:
+                while True:
+                    last = events.get_nowait()
+            except Empty:
+                pass
+            if last and last.get("event") == "fetch_start":
+                st.warning(f"Last URL before timeout: {last.get('url')}  (page {last.get('page')})")
+
             # Show the tail of the traceback for quick debugging
             tb = "".join(traceback.format_exc())
             st.code(tb[-1200:])  # last ~1200 chars

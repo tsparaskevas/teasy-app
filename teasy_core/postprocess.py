@@ -140,6 +140,12 @@ RE_GBARE = [
     re.compile(r"(?i)^\s*(\d+)\s*(χρόνια|έτη|year|years?)\s*$"),
 ]
 
+# Examples: "11:20", "11:20:05", "ώρα 11:20", "11:20 πμ", "11:20 μμ", "11:20 pm", "11:20,"
+RE_HHMM_ONLY = re.compile(
+    r"^\s*(?:ώρα\s*)?(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(πμ|μμ|am|pm|AM|PM)?\s*[.,;·]?\s*$",
+    re.IGNORECASE
+)
+
 # Translation map to strip Greek accents to their base letters
 _G_ACCENTS = str.maketrans({
     "ά": "α", "έ": "ε", "ί": "ι", "ό": "ο", "ύ": "υ", "ή": "η", "ώ": "ω",
@@ -267,6 +273,27 @@ def normalize_date(text: Optional[str]) -> Optional[str]:
     ago = _apply_ago(now, t)
     if ago:
         return ago
+
+        # bare time only: "HH:MM[:SS]" -> assume today
+    m = RE_HHMM_ONLY.match(t)
+    if m:
+        hh_s, mm_s, ss_s, ap = m.groups()
+        hh, mi = int(hh_s), int(mm_s)
+        ss = int(ss_s) if ss_s else 0
+        if ap:
+            ap_norm = ap.lower()
+            if ap_norm in ("πμ", "am"):
+                if hh == 12:
+                    hh = 0
+            elif ap_norm in ("μμ", "pm"):
+                if hh < 12:
+                    hh += 12
+        try:
+            dt = datetime(year=now.year, month=now.month, day=now.day,
+                          hour=hh, minute=mi, second=ss)
+            return dt.strftime("%Y-%m-%dT%H:%M")
+        except ValueError:
+            return None
 
     # "20/09/2025 • 00:00 •"
     m = RE_DDMMYYYY_BULLET_HHMM.match(t)
