@@ -18,6 +18,12 @@ LOGS_CSV = Path(__file__).resolve().parents[2] / "data" / "logs" / "runs.csv"
 
 st.title("4 · View Run Logs")
 
+st.markdown(
+    "Browse and filter **scrape runs** recorded in `data/logs/runs.csv`. "
+    "Use the dropdowns to filter by category, spec, or status. "
+    "The table shows one row per run with date/time, pages, term, rows saved, and any message."
+)
+
 if not LOGS_CSV.exists():
     st.info("No runs logged yet.")
     st.stop()
@@ -35,12 +41,12 @@ df = df[[c for c in cols if c in df.columns] + [c for c in df.columns if c not i
 col1, col2, col3 = st.columns(3)
 with col1:
     cats = ["(all)"] + sorted(df['category'].dropna().unique().tolist()) if 'category' in df else ["(all)"]
-    cat = st.selectbox("Category", cats)
+    cat = st.selectbox("Category", cats, help="Filter runs by scraper category (e.g., search, opinion). Choose (all) to show everything.")
 with col2:
     specs = ["(all)"] + sorted(df['spec_name'].dropna().unique().tolist()) if 'spec_name' in df else ["(all)"]
-    spec = st.selectbox("Spec", specs)
+    spec = st.selectbox("Spec", specs, help="Limit to a specific YAML spec name. Choose (all) to include every spec.")
 with col3:
-    stat = st.selectbox("Status", ["(all)","ok","fail"])
+    stat = st.selectbox("Status", ["(all)","ok","fail"], help="Show only successful runs (ok) or failures/timeouts (fail).")
 
 mask = pd.Series([True]*len(df))
 if 'category' in df and cat != "(all)":

@@ -46,15 +46,15 @@ st.title("0 · Build a Scraper")
 for k, v in {"final_url":"", "html_cache":"", "engine": ""}.items():
     st.session_state.setdefault(k, v)
 
-site_key_raw = st.text_input("Site key (filename prefix)", "capital")
-category = st.selectbox("Category", ["all","search","opinion"], index=1)
+site_key_raw = st.text_input("Site key (filename prefix)", "capital", help="Used as the filename prefix for the YAML spec. Tip: leave blank to auto-derive from Base URL (e.g., 'dnews.gr' → 'dnews'). Examples: 'parapolitika', 'kathimerini'.")
+category = st.selectbox("Category", ["all","search","opinion"], index=1, help="Affects naming and search behavior. 'search' enables term mapping & {s} placeholder.")
 
-url = st.text_input("Teaser page URL (first page)", "")
-main_container = st.text_input("Main container CSS (list wrapper)", "article")
-item_css = st.text_input("Item CSS (each teaser)", "article")
+url = st.text_input("Teaser page URL (first page)", "", help="The first teaser/listing page you want to extract. Examples:\nhttps://www.parapolitika.gr/, https://www.protothema.gr/politics/?page=1, For search: https://site.gr/search?page=1&q={s}")
+main_container = st.text_input("Main container CSS (list wrapper)", "div.articles", help="CSS that wraps all teaser items (optional). Example: 'div.articles' or 'section#content'.")
+item_css = st.text_input("Item CSS (each teaser)", "article", help="CSS for each teaser card. Examples: 'article', 'li.result', 'div.teaser'.")
 
 if category != "search" and "{s}" in url:
-    st.warning("Το {s} χρησιμοποιείται μόνο σε 'search' κατηγορία. Αφαίρεσέ το ή άλλαξε την κατηγορία σε 'search'.")
+    st.warning("{s} is used for 'search' category only. Remove it or change category to 'search'.")
 
 def normalize_site_key(raw: str, base_url: str | None = None) -> str:
     s = (raw or "").strip().lower()
@@ -104,7 +104,7 @@ with col1:
     if st.button(
         "Fetch page", type="primary", 
         disabled=DEMO_DISABLED,
-        help="Disabled in demo mode" if DEMO_DISABLED else None,
+        help="Disabled in demo mode" if DEMO_DISABLED else "Fetches the page using Requests first, then falls back to Selenium if needed.",
         width='stretch',
     ):
         if not url.strip():
@@ -130,14 +130,14 @@ st.divider()
 st.subheader("Selectors (relative to Item CSS)")
 left, right = st.columns(2)
 with left:
-    title_css = st.text_input("Title CSS", "h2 a")
-    url_css = st.text_input("URL CSS", "h2 a")
-    url_attr = st.text_input("URL attr", "href")
-    date_css = st.text_input("Date CSS", "time")
-    date_attr = st.text_input("Date attr", "datetime")
+    title_css = st.text_input("Title CSS", "h2 a", help="CSS (relative to each item) for the title element. Example: 'h2 a' or '.title a'.")
+    url_css = st.text_input("URL CSS", "h2 a", help="CSS (relative to each item) that contains the article link. Usually the same as Title CSS (e.g., 'h2 a').")
+    url_attr = st.text_input("URL attr", "href", help="Attribute that holds the URL. Usually 'href'.")
+    date_css = st.text_input("Date CSS", "time", help="CSS (relative to each item) for the date/time element. Examples: 'time', '.meta time', 'span.date'.")
+    date_attr = st.text_input("Date attr", "datetime", help="Attribute that holds the datetime when available. Common: 'datetime'. Leave empty to extract text.")
 with right:
-    section_css = st.text_input("Section CSS", "")
-    summary_css = st.text_input("Summary CSS", "")
+    section_css = st.text_input("Section CSS", "", help="CSS (relative to each item) for the section/category label (optional). Example: '.section'.")
+    summary_css = st.text_input("Summary CSS", "", help="CSS (relative to each item) for a short summary/excerpt (optional). Example: 'p.summary'.")
 
 if st.button("Preview extraction"):
     html_cache = st.session_state.get("html_cache") or ""
@@ -165,14 +165,14 @@ if st.button("Preview extraction"):
 
 st.divider()
 st.subheader("Save as YAML spec")
-base_url = st.text_input("Base URL (for resolving relative links)", "https://example.com")
-start_url = st.text_input("Start URL (use {s} only for 'search')", "https://example.com/search?page=1&q={s}")
+base_url = st.text_input("Base URL (for resolving relative links)", "https://example.com", help="Used to resolve relative links. Example: 'https://www.parapolitika.gr'.")
+start_url = st.text_input("Start URL (use {s} only for 'search')", "https://example.com/search?page=1&q={s}", help="The URL pattern of the first listing/search page. For search, include {s}. Examples: https://site.gr/news?page=1, https://site.gr/search?page=1&q={s}")
 
-mode = st.radio("Pagination", ["path","param","none"], index=1, horizontal=True)
-template = st.text_input("Template (path)", "", disabled=(mode!="path"))
-param = st.text_input("Param (param)", "page", disabled=(mode!="param"))
+mode = st.radio("Pagination", ["path","param","none"], index=1, horizontal=True, help="Pagination style:\n• path → /page/{n}\n• param → ?page=n (or any param)\n• none → single page only")
+template = st.text_input("Template (path)", "", disabled=(mode!="path"), help="For path mode. Example: '/page/{n}' or '/category/politics/page/{n}'.")
+param = st.text_input("Param (param)", "page", disabled=(mode!="param"), help="For param mode. Example: 'page' (so it becomes ?page=2).")
 # allow 0 for sites whose first page is 0
-first_page = st.number_input("First page", min_value=0, max_value=999, value=1)
+first_page = st.number_input("First page", min_value=0, max_value=999, value=1, help="First page index on the site. Many sites start at 1,  some at 0.")
 # per_page for offset pagination
 per_page = st.number_input(
     "Per-page (offset step)",
@@ -180,13 +180,13 @@ per_page = st.number_input(
     help="Leave 0 for page-number mode. For offset-style pagination (e.g., ?start=0,31,62?), set the step (31 here).",
     disabled=(mode!="param"),
 )
-is_chronological = st.checkbox("Results are newest-first?", value=True)
-force_js = st.checkbox("Force Selenium (JS required)", value=True)
+is_chronological = st.checkbox("Results are newest-first?", value=True, help="Check if results are newest first. This helps the scraper decide when to stop.")
+force_js = st.checkbox("Force Selenium (JS required)", value=True, help="Force Selenium (JS). Turn off to try Requests first and use Selenium only as a fallback.")
 
-search_term_mode = st.selectbox("Search term mode (only for 'search')", ["raw","greeklish"], index=0, disabled=(category!="search"))
+search_term_mode = st.selectbox("Search term mode (only for 'search')", ["raw","greeklish"], index=0, help="How to transform the search term for 'search' category.\n• raw → use as typed\n• greeklish → auto-convert Greek to Latin", disabled=(category!="search"))
 st.caption("Optional map (only for 'search'): e.g. key='Τέμπη' → value='tempi'")
-map_key = st.text_input("Map key", "", disabled=(category!="search"))
-map_val = st.text_input("Map value", "", disabled=(category!="search"))
+map_key = st.text_input("Map key", "", help="Optional mapping for specific search terms (key). Example: 'Τέμπη'.", disabled=(category!="search"))
+map_val = st.text_input("Map value", "", help="Mapped value (value). Example: 'tempi'. Used only in 'search' category.", disabled=(category!="search"))
 
 if st.button("Save spec"):
     key = normalize_site_key(site_key_raw, base_url=base_url)

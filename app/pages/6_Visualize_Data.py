@@ -17,18 +17,6 @@ def _find_project_root(marker: str = "data") -> Path:
 PROJECT_ROOT = _find_project_root()
 DEFAULT_OUTPUTS = PROJECT_ROOT / "data" / "outputs"
 
-# ---------- Filename parsing ----------
-# def _parse_row(fp: Path) -> Optional[dict]:
-#     if fp.suffix.lower() != ".csv":
-#         return None
-#     parts = fp.stem.split("_")
-#     if len(parts) < 2:
-#         return None
-#     site = parts[0]
-#     category = parts[1]
-#     slug = parts[2] if len(parts) >= 3 else None
-#     return {"path": str(fp), "site": site, "category": category, "slug": slug}
-
 def _parse_row(fp: Path) -> Optional[dict]:
     if fp.suffix.lower() != ".csv":
         return None
@@ -88,8 +76,17 @@ def load_many_minimal(pairs: Tuple[Tuple[str, str], ...]) -> pd.DataFrame:
 st.set_page_config(page_title="6 · Visualize", page_icon="📈", layout="wide")
 st.title("6 · Visualize Data — Category overview & timeline")
 
+st.markdown(
+    "Use this page to **compare article volume across sites over time**. "
+    "Choose a category (and search term if applicable), then filter by date range and sites. "
+    "Two visualizations are shown:\n"
+    "• **Bar chart**: total articles per site.\n"
+    "• **Timeline**: total articles per day.\n"
+    "Use this to spot spikes, coverage patterns, or gaps."
+)
+
 # Folder picker
-out_dir = st.text_input("Outputs folder", str(DEFAULT_OUTPUTS))
+out_dir = st.text_input("Outputs folder", str(DEFAULT_OUTPUTS), help="Folder containing output CSV files (usually data/outputs). Change only if your data is stored elsewhere.")
 
 meta = list_outputs_df(out_dir)
 if meta.empty:
@@ -98,13 +95,13 @@ if meta.empty:
 
 # Step 1: Category
 categories = sorted(meta["category"].dropna().unique().tolist())
-cat = st.selectbox("Select category", options=["(select)"] + categories, index=0)
+cat = st.selectbox("Select category", options=["(select)"] + categories, index=0, help="Filters datasets by their category (e.g., search, opinion, all).")
 
 # Step 2: Slug (search term) if category == search
 slug = None
 if cat == "search":
     slugs = sorted(meta.loc[meta["category"]=="search", "slug"].dropna().unique().tolist())
-    slug = st.selectbox("Select search term (from filename)", options=["(select)"] + slugs, index=0)
+    slug = st.selectbox("Select search term (from filename)", options=["(select)"] + slugs, index=0, help="For 'search' datasets: choose which search term to visualize.")
     if slug == "(select)":
         slug = None
 
@@ -139,7 +136,7 @@ if dates.empty:
     st.warning("No valid dates parsed.")
     st.stop()
 min_d, max_d = dates.min().date(), dates.max().date()
-date_range = st.date_input("Date range", value=(min_d, max_d), min_value=min_d, max_value=max_d)
+date_range = st.date_input("Date range", value=(min_d, max_d), min_value=min_d, max_value=max_d, help="Limits the timeline to a specific date interval.")
 
 # Step 4: Sites (with Select-all)
 all_sites = sorted(data["site"].unique().tolist())
@@ -149,9 +146,9 @@ with col_sites1:
 with col_sites2:
     if select_all:
         sel_sites = all_sites
-        st.multiselect("Sites", options=all_sites, default=all_sites, disabled=True, key="sites_ms")
+        st.multiselect("Sites", options=all_sites, default=all_sites, disabled=True, key="sites_ms", help="Pick which sites to include in charts and tables.")
     else:
-        sel_sites = st.multiselect("Sites", options=all_sites, default=all_sites, key="sites_ms")
+        sel_sites = st.multiselect("Sites", options=all_sites, default=all_sites, key="sites_ms", help="Pick which sites to include in charts and tables.")
 
 # Apply filters
 start, end = date_range if isinstance(date_range, (list, tuple)) else (date_range, date_range)

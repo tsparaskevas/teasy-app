@@ -17,10 +17,16 @@ from pathlib import Path
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "outputs"
 
 st.title("5 · View Data")
+
+st.markdown(
+    "Browse the **final scraped CSV files** stored in `data/outputs/`. "
+    "Each file corresponds to a scraper spec and may contain many pages of results. "
+)
+
 files = sorted(OUTPUT_DIR.glob("*.csv"))
 if not files:
     st.info("No output CSVs yet.")
 else:
-    fname = st.selectbox("CSV", [f.name for f in files])
+    fname = st.selectbox("CSV", [f.name for f in files], help="Choose which dataset to preview. Data is not modified here.")
     df = pd.read_csv(OUTPUT_DIR / fname)
     st.dataframe(df, width='stretch')

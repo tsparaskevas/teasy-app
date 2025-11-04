@@ -25,6 +25,11 @@ SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 
 st.title("2 · Test Scraper")
 
+st.markdown(
+    "Use this page to **try a scraper spec without saving data**. "
+    "Pick a YAML, choose pages (and a search term if applicable), preview the planned URLs, then **Run test** to see the extracted rows."
+)
+
 # Demo guard (Cloud)
 DEMO_DISABLED = bool(DEMO)
 if DEMO_DISABLED:
@@ -39,7 +44,7 @@ if not files:
     st.info("No specs found. Create one in '0 · Build'.")
     st.stop()
 
-fname = st.selectbox("Choose a spec", [f.name for f in files])
+fname = st.selectbox("Choose a spec", [f.name for f in files], help="Pick a YAML scraper spec from /data/scrapers to test.")
 spec = ScraperSpec.model_validate(yaml.safe_load((SCRAPER_DIR / fname).read_text(encoding="utf-8")))
 
 # Optional search term for 'search' category
@@ -48,18 +53,19 @@ term_in = ""
 term_used = ""
 slug = ""
 if spec.category == "search":
-    term_in = st.text_input("Search term (s)", "Τέμπη")
+    term_in = st.text_input("Search term (s)", "Τέμπη", help="Only for 'search' category. Type your query; mapping/greeklish rules from the spec will be applied.")
     term_used, slug = slug_from_term(spec, term_in)
     vars["s"] = term_used
 
 # Start page (allow 0)
-start_from = st.number_input("Start from page", min_value=0, value=spec.pagination.first_page)
+start_from = st.number_input("Start from page", min_value=0, value=spec.pagination.first_page, help="The first page index to use during this test. Many sites start at 1, some at 0.")
 
 # Page mode
 page_mode = st.radio(
     "Pages to fetch",
     ["Limit to N", "From–To", "All pages (until empty)"],
-    horizontal=True
+    horizontal=True,
+    help="How many pages to fetch:\n• Limit to N → fetch N pages starting at Start from.\n• From–To → exact range (inclusive).\n• All pages → continue until an empty page is found."
 )
 
 pages_to_fetch = None
@@ -68,13 +74,13 @@ page_to = None
 fetch_all = False
 
 if page_mode == "Limit to N":
-    pages_to_fetch = st.number_input("Pages", min_value=1, max_value=1000, value=3)
+    pages_to_fetch = st.number_input("Pages", min_value=1, max_value=1000, value=3, help="How many pages to fetch starting from the selected first page.")
 elif page_mode == "From–To":
     c1, c2 = st.columns(2)
     with c1:
-        page_from = st.number_input("From page", min_value=0, value=int(start_from))
+        page_from = st.number_input("From page", min_value=0, value=int(start_from), help="Range start (inclusive). Must be ≤ To page.")
     with c2:
-        page_to = st.number_input("To page", min_value=0, value=int(max(start_from, start_from+2)))
+        page_to = st.number_input("To page", min_value=0, value=int(max(start_from, start_from+2)), help="Range end (inclusive). Must be ≥ From page.")
     if page_to < page_from:
         st.error("‘To page’ must be ≥ ‘From page’.")
         st.stop()
@@ -116,11 +122,12 @@ st.info(
     + (f" — term: '{term_in}' → used: '{term_used}', slug: '{slug}'" if spec.category=='search' else "")
 )
 with st.expander("Planned URLs"):
+    st.caption("Preview of the exact URLs that will be requested with these settings.")
     for u in urls:
         st.write(u)
 
 if st.button("Run test", type="primary", disabled=DEMO_DISABLED,
-    help="Disabled in demo mode" if DEMO_DISABLED else None,):
+    help="Disabled in demo mode" if DEMO_DISABLED else "Runs the scraper with the chosen settings and shows a dataframe (no files are written).",):
     # Apply the effective start page in-memory so the runner’s relative math aligns
     spec.pagination.first_page = int(start_from)
 

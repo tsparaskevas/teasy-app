@@ -35,6 +35,13 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 st.title("3 · Run Scrapes")
 
+st.markdown(
+    "Run one or more scraper specs and **save results to CSV**. "
+    "Pick a category, choose specs, select how many pages to fetch, and hit **Run**. "
+    "If a site takes too long, we mark it as timeout, show the **last URL attempted**, "
+    "and (if available) merge any **partial rows** collected so far."
+)
+
 # Demo guard (Cloud)
 DEMO_DISABLED = bool(DEMO)
 if DEMO_DISABLED:
@@ -44,7 +51,7 @@ if DEMO_DISABLED:
         "To run scrapes, clone the repo and run locally."
     )
 
-target_cat = st.selectbox("Category to run", ["all","search","opinion"], index=1)
+target_cat = st.selectbox("Category to run", ["all","search","opinion"], index=1, help="Filter the list to specs of this category only.")
 
 all_files = sorted(SCRAPER_DIR.glob("*.yaml"))
 if not all_files:
@@ -106,14 +113,15 @@ if not specs:
     st.stop()
 
 names = [n for n,_ in specs]
-select_all = st.checkbox(f"Select all ({len(names)})", value=True)
-chosen = st.multiselect("Choose specs", names, default=(names if select_all else []))
+select_all = st.checkbox(f"Select all ({len(names)})", value=True, help="Quickly select or clear all specs in the list.")
+chosen = st.multiselect("Choose specs", names, default=(names if select_all else []), help="Pick the exact specs to run. Hold Ctrl/Cmd to multi-select.")
 
 # Page mode selector
 page_mode = st.radio(
     "Pages to scrape",
     ["Limit to N", "From–To", "All pages (until empty)"],
-    horizontal=True
+    horizontal=True,
+    help="How many pages per site:\n• Limit to N → fetch N pages starting from the spec’s first page.\n• From–To → fetch an exact inclusive range.\n• All pages → keep going until an empty page (or stop condition)."
 )
 
 pages_to_fetch: int | None = None
@@ -122,13 +130,13 @@ page_to: int | None = None
 fetch_all = False
 
 if page_mode == "Limit to N":
-    pages_to_fetch = st.number_input("Pages per site", min_value=1, max_value=1000, value=3)
+    pages_to_fetch = st.number_input("Pages per site", min_value=1, max_value=1000, value=3, help="Number of pages per site (when using ‘Limit to N’).")
 elif page_mode == "From–To":
     cols = st.columns(2)
     with cols[0]:
-        page_from = st.number_input("From page", min_value=0, value=0)
+        page_from = st.number_input("From page", min_value=0, value=0, help="First page index to fetch (inclusive). Many sites start at 1, some at 0.")
     with cols[1]:
-        page_to = st.number_input("To page", min_value=0, value=2)
+        page_to = st.number_input("To page", min_value=0, value=2, help="Last page index to fetch (inclusive). Must be ≥ From page.")
     if page_to < page_from:
         st.error("‘To page’ must be ≥ ‘From page’.")
         st.stop()
@@ -140,18 +148,18 @@ else:
 auto_all_if_not_chrono = st.checkbox(
     "Auto-fetch ALL for non-chronological specs (when using ‘Limit to N’)",
     value=True,
-    help="If a spec's results are not newest-first, ignore the numeric page limit and scrape until an empty page."
+    help="If a spec isn’t newest-first, a fixed page limit can miss results. Enable to fetch until the first empty page instead."
 )
 
 per_site_timeout = st.number_input(
     "Per-site timeout (seconds)",
     min_value=30, max_value=3600, value=180,
-    help="If a site takes longer than this, we mark it as 'timeout' and continue with the next one."
+    help="If a site takes longer than this, it is marked as 'timeout', scraping is stoped for this site, the URL that timed out is showed, and scraping continues with the next site (if applicable)."
 )
 
 search_term_global = ""
 if target_cat == "search":
-    search_term_global = st.text_input("Search term", "Τέμπη")
+    search_term_global = st.text_input("Search term", "Τέμπη", help="Only for ‘search’ specs. The app applies mapping/greeklish rules from the YAML.")
 
 # Run button (disabled in demo / when no selection)
 help_msg = "Disabled in demo mode" if DEMO_DISABLED else (None if chosen else "Choose at least one spec")
@@ -161,7 +169,7 @@ run_clicked = st.button(
     "Run",
     type="primary",
     disabled=disabled_flag,
-    help=help_msg,
+    help=help_msg or "Start scraping the selected specs with the chosen paging mode. Results are merged/deduped into data/outputs/*.csv.",
 )
 
 if run_clicked:
@@ -220,6 +228,7 @@ if run_clicked:
             + (f" — term: '{term_in}' → '{term_used}', slug: '{slug_part[1:]}'" if spec.category=='search' else "")
         )
         with st.expander(f"Planned URLs for {spec.name}"):
+            st.caption("Preview of the exact URLs that will be requested for this spec.")
             for u in urls:
                 st.write(u)
 
