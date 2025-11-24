@@ -5,6 +5,7 @@ from datetime import datetime
 from urllib.parse import quote_plus, urlparse, parse_qsl, urlencode, urlunparse
 import pandas as pd
 import re
+import json
 
 from .models import ScraperSpec
 from .fetcher import HybridFetcher
@@ -94,6 +95,87 @@ def page_url(spec: ScraperSpec, page: int, vars: Dict[str, str] | None) -> str:
     # Fallback
     return base_f
 
+def _extract_from_json(spec: ScraperSpec, body: str) -> List[Dict]:
+    """
+    Given a JSON response body and a ScraperSpec with json_key selectors,
+    return a list of rows (dicts) with 'title', 'url', 'date', 'section', 'summary' if present.
+    """
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return []
+
+    # Drill down if json_list_path is configured (e.g. "items" or "data.items")
+    items = data
+    path = getattr(spec, "json_list_path", None)
+    if path:
+        for part in path.split("."):
+            if isinstance(items, dict):
+                items = items.get(part, [])
+            else:
+                items = []
+                break
+
+    # If still not a list, maybe top-level is already a list (AMNA style)
+    if not isinstance(items, list):
+        if isinstance(data, list):
+            items = data
+        else:
+            return []
+
+    rows: List[Dict] = []
+    fm = spec.selectors
+
+    # convenience: get Selector for each field if present
+    title_sel = getattr(fm, "title", None)
+    url_sel = getattr(fm, "url", None)
+    date_sel = getattr(fm, "date", None)
+    section_sel = getattr(fm, "section", None)
+    summary_sel = getattr(fm, "summary", None)
+
+    tpl = getattr(spec, "json_url_template", None)
+
+    for obj in items:
+        if not isinstance(obj, dict):
+            continue
+
+        # URL from template if provided
+        url_val = None
+        if tpl:
+            try:
+                url_val = tpl.format(**obj)
+            except Exception:
+                url_val = None
+
+        row: Dict[str, Optional[str]] = {}
+
+        if title_sel and title_sel.type == "json_key":
+            row["title"] = obj.get(title_sel.query)
+        if url_sel and url_sel.type == "json_key":
+            # If we have a template, prefer that over the raw key value
+            row["url"] = url_val if tpl else obj.get(url_sel.query)
+        elif tpl:
+            row["url"] = url_val
+
+        if date_sel and date_sel.type == "json_key":
+            row["date"] = obj.get(date_sel.query)
+        if section_sel and section_sel.type == "json_key":
+            row["section"] = obj.get(section_sel.query)
+        if summary_sel and summary_sel.type == "json_key":
+            row["summary"] = obj.get(summary_sel.query)
+
+        # ensure keys exist (normalize)
+        for k in ["title", "url", "date", "summary", "section"]:
+            row.setdefault(k, None)
+
+        # skip completely empty rows
+        if not row.get("title") and not row.get("url"):
+            continue
+
+        rows.append(row)
+
+    return rows
+
 def map_search_term(spec: ScraperSpec, term: str) -> str:
     t = (term or "").strip()
     if not t:
@@ -104,12 +186,6 @@ def map_search_term(spec: ScraperSpec, term: str) -> str:
     if mode == "greeklish":
         return greek_to_latin(t)
     return t
-
-# def slug_from_term(spec: ScraperSpec, term_in: str) -> Tuple[str, str]:
-#     used = map_search_term(spec, term_in)
-#     basis = used if used else term_in
-#     slug = slugify(basis)
-#     return used, slug
 
 def slug_from_term(spec: ScraperSpec, term_in: str) -> tuple[str, str]:
     used = map_search_term(spec, term_in)
@@ -220,10 +296,21 @@ def run_scraper(
                         progress({"event":"assume_end","page": current, "url": target_url, "reason": str(e)})
                     break
                 raise
-            rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
-            rows = normalize_rows(rows, base_url=final_url)
+            if spec.response_type == "json":
+                rows = _extract_from_json(spec, html)
+                rows = normalize_rows(rows, base_url=final_url)
+            else:
+                rows = extract_items(
+                    html,
+                    spec.selectors,
+                    container_css=spec.main_container_css,
+                    item_css=spec.item_css,
+                )
+                rows = normalize_rows(rows, base_url=final_url)
+
             if not rows:
                 break
+
             all_rows.extend(rows)
             # incremental checkpoint
             _append_partial(rows)
@@ -242,8 +329,18 @@ def run_scraper(
                 wait_for_css=(spec.item_css or spec.main_container_css or None),
                 wait_timeout=20,
             )
-            rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
-            rows = normalize_rows(rows, base_url=final_url)
+            if spec.response_type == "json":
+                rows = _extract_from_json(spec, html)
+                rows = normalize_rows(rows, base_url=final_url)
+            else:
+                rows = extract_items(
+                    html,
+                    spec.selectors,
+                    container_css=spec.main_container_css,
+                    item_css=spec.item_css,
+                )
+                rows = normalize_rows(rows, base_url=final_url)
+
             all_rows.extend(rows)
             _append_partial(rows)
 
@@ -261,13 +358,48 @@ def run_scraper(
                 wait_for_css=(spec.item_css or spec.main_container_css or None),
                 wait_timeout=20,
             )
-            rows = extract_items(html, spec.selectors, container_css=spec.main_container_css, item_css=spec.item_css)
-            rows = normalize_rows(rows, base_url=final_url)
+            if spec.response_type == "json":
+                rows = _extract_from_json(spec, html)
+                rows = normalize_rows(rows, base_url=final_url)
+            else:
+                rows = extract_items(
+                    html,
+                    spec.selectors,
+                    container_css=spec.main_container_css,
+                    item_css=spec.item_css,
+                )
+                rows = normalize_rows(rows, base_url=final_url)
+
             all_rows.extend(rows)
             _append_partial(rows)
 
     df = pd.DataFrame(all_rows)
+
     if "url" in df.columns:
+        # Keep only URLs that belong to the same site as spec.base_url
+        base_host = urlparse(str(spec.base_url)).netloc.lower().lstrip("www.")
+
+        def _belongs_to_site(u) -> bool:
+            if u is None:
+                return False
+            # Handle NaN and weird values
+            try:
+                s = str(u)
+            except Exception:
+                return False
+            if not s:
+                return False
+            try:
+                host = urlparse(s).netloc.lower().lstrip("www.")
+            except Exception:
+                return False
+            # Only accept exact host match ignoring leading 'www.'
+            return bool(host) and host == base_host
+
+        df = df[df["url"].apply(_belongs_to_site)]
+
+        # Deduplicate by URL
         df = df.drop_duplicates(subset=["url"], keep="last")
+
     return df
 

@@ -1,0 +1,31 @@
+name: ertnews_search
+base_url: https://www.ertnews.gr
+start_url: https://www.ertnews.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: a
+  url:
+    type: css
+    query: a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+pagination:
+  mode: path
+  template: https://www.ertnews.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+main_container_css: main.site-main div.article-list
+item_css: div.post-content
+response_type: html
+search_term_mode: raw

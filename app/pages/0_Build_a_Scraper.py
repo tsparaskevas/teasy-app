@@ -1,7 +1,7 @@
 from __future__ import annotations
 import sys, os, re
 from pathlib import Path
-import streamlit as st  
+import streamlit as st 
 
 # st.set_page_config(page_title="Build a Scraper", page_icon="🧱", layout="wide")
 
@@ -29,6 +29,7 @@ if DEMO_DISABLED:
 
 import pandas as pd
 import yaml
+import json 
 from bs4 import BeautifulSoup
 
 from teasy_core.extractor import extract_items, selector_diagnostics
@@ -43,15 +44,31 @@ SCRAPER_DIR.mkdir(parents=True, exist_ok=True)
 
 st.title("0 · Build a Scraper")
 
-for k, v in {"final_url":"", "html_cache":"", "engine": ""}.items():
+for k, v in {"final_url":"", "html_cache":"", "engine": "", "is_json": False, "json_cache": None,}.items():
     st.session_state.setdefault(k, v)
 
 site_key_raw = st.text_input("Site key (filename prefix)", "capital", help="Used as the filename prefix for the YAML spec. Tip: leave blank to auto-derive from Base URL (e.g., 'dnews.gr' → 'dnews'). Examples: 'parapolitika', 'kathimerini'.")
 category = st.selectbox("Category", ["all","search","opinion"], index=1, help="Affects naming and search behavior. 'search' enables term mapping & {s} placeholder.")
 
+response_type = st.radio(
+    "Response type",
+    ["auto", "html", "json"],
+    index=0,
+    horizontal=True,
+    help="auto: try to detect JSON vs HTML\nhtml: force HTML parsing with CSS selectors\njson: treat response as JSON"
+)
+
 url = st.text_input("Teaser page URL (first page)", "", help="The first teaser/listing page you want to extract. Examples:\nhttps://www.parapolitika.gr/, https://www.protothema.gr/politics/?page=1, For search: https://site.gr/search?page=1&q={s}")
 main_container = st.text_input("Main container CSS (list wrapper)", "div.articles", help="CSS that wraps all teaser items (optional). Example: 'div.articles' or 'section#content'.")
 item_css = st.text_input("Item CSS (each teaser)", "article", help="CSS for each teaser card. Examples: 'article', 'li.result', 'div.teaser'.")
+# Enforce: if you use Item CSS in HTML mode, you must set Main container CSS
+is_json = st.session_state.get("is_json", False)
+
+if not is_json and item_css.strip() and not main_container.strip():
+    st.error(
+        "You have set an Item CSS but no Main container CSS. "
+        "For HTML scrapers, selectors must be scoped inside a Main container."
+    )
 
 if category != "search" and "{s}" in url:
     st.warning("{s} is used for 'search' category only. Remove it or change category to 'search'.")
@@ -83,21 +100,19 @@ def fetch_with_fallback(u: str, container_css: str, item_css: str):
         raise RuntimeError("Demo mode: fetching disabled")
     try:
         req = RequestsFetcher()
-        final_url, html = req.get(u, headers={})
-        soup = BeautifulSoup(html, "lxml")
-        if container_css.strip() and soup.select(container_css):
-            return final_url, html, "Requests"
+        final_url, body = req.get(u, headers={})
+        return final_url, body, "Requests"
     except Exception:
         pass
     f = HybridFetcher(js_required=True, page_load_strategy="eager")
-    final_url, html = f.get(
+    final_url, body = f.get(
         u,
         headers={},
         wait_for_css=(item_css.strip() or container_css.strip() or None),
         wait_timeout=20,
         consent_click_xpaths=KNOWN_CONSENT_XPATHS,
     )
-    return final_url, html, "Selenium"
+    return final_url, body, "Selenium"
 
 col1, col2 = st.columns([2,1])
 with col1:
@@ -110,58 +125,232 @@ with col1:
         if not url.strip():
             st.warning("Provide a URL")
         else:
-            final_url, html, engine = fetch_with_fallback(url.strip(), main_container.strip(), item_css.strip())
+            final_url, body, engine = fetch_with_fallback(url.strip(), main_container.strip(), item_css.strip())
             st.session_state["final_url"] = final_url
-            st.session_state["html_cache"] = html
+            st.session_state["html_cache"] = body
             st.session_state["engine"] = engine
+
+            # Detect JSON vs HTML based on response_type toggle
+            raw = body
+            is_json = False
+            st.session_state["json_cache"] = None
+
+            if response_type in ("auto", "json"):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, (list, dict)):
+                        is_json = True
+                        st.session_state["json_cache"] = parsed
+                except json.JSONDecodeError:
+                    pass
+
+            if response_type == "html":
+                is_json = False
+                st.session_state["json_cache"] = None
+
+            st.session_state["is_json"] = is_json
+
 with col2:
     if st.button("Clear"):
-        for k in ["final_url","html_cache","engine"]:
-            st.session_state[k] = ""
+        for k in ["final_url","html_cache","engine", "is_json", "json_cache"]:
+            st.session_state[k] = "" if k != "is_json" else False
 
 if st.session_state.get("final_url"):
-    st.success(f"Fetched via **{st.session_state['engine']}** → {st.session_state['final_url']}")
-    soup = BeautifulSoup(st.session_state["html_cache"], "lxml")
-    mc = len(soup.select(main_container)) if main_container.strip() else 0
-    it = len(soup.select(item_css)) if item_css.strip() else 0
-    st.caption(f"Main container matches: {mc} — Item matches: {it}")
+    is_json = st.session_state.get("is_json", False)
+    raw = st.session_state["html_cache"]
+
+    if is_json:
+        st.success(f"Fetched JSON via **{st.session_state['engine']}** → {st.session_state['final_url']}")
+        data = st.session_state.get("json_cache")
+        if isinstance(data, list):
+            st.caption(f"Top-level JSON array with {len(data)} items.")
+        elif isinstance(data, dict):
+            st.caption(
+                "Top-level JSON object with keys: "
+                + ", ".join(list(data.keys())[:10])
+            )
+        else:
+            st.caption("JSON payload detected, but structure is not a list or dict.")
+
+    else:
+        st.success(f"Fetched HTML via **{st.session_state['engine']}** → {st.session_state['final_url']}")
+        soup = BeautifulSoup(raw, "lxml")
+        mc = len(soup.select(main_container)) if main_container.strip() else 0
+        it = len(soup.select(item_css)) if item_css.strip() else 0
+        st.caption(f"Main container matches: {mc} — Item matches: {it}")
+
+# defaults so they exist in both modes (json, html)
+json_list_path = ""
+json_title_key = ""
+json_url_key = ""
+json_url_template = ""
+json_date_key = ""
+json_section_key = ""
+json_summary_key = ""
 
 st.divider()
-st.subheader("Selectors (relative to Item CSS)")
-left, right = st.columns(2)
-with left:
-    title_css = st.text_input("Title CSS", "h2 a", help="CSS (relative to each item) for the title element. Example: 'h2 a' or '.title a'.")
-    url_css = st.text_input("URL CSS", "h2 a", help="CSS (relative to each item) that contains the article link. Usually the same as Title CSS (e.g., 'h2 a').")
-    url_attr = st.text_input("URL attr", "href", help="Attribute that holds the URL. Usually 'href'.")
-    date_css = st.text_input("Date CSS", "time", help="CSS (relative to each item) for the date/time element. Examples: 'time', '.meta time', 'span.date'.")
-    date_attr = st.text_input("Date attr", "datetime", help="Attribute that holds the datetime when available. Common: 'datetime'. Leave empty to extract text.")
-with right:
-    section_css = st.text_input("Section CSS", "", help="CSS (relative to each item) for the section/category label (optional). Example: '.section'.")
-    summary_css = st.text_input("Summary CSS", "", help="CSS (relative to each item) for a short summary/excerpt (optional). Example: 'p.summary'.")
+is_json = st.session_state.get("is_json", False)
+
+if not is_json:
+    st.subheader("Selectors (relative to Item CSS)")
+    left, right = st.columns(2)
+    with left:
+        title_css = st.text_input("Title CSS", "h2 a", help="CSS (relative to each item) for the title element. Example: 'h2 a' or '.title a'.")
+        url_css = st.text_input("URL CSS", "h2 a", help="CSS (relative to each item) that contains the article link. Usually the same as Title CSS (e.g., 'h2 a').")
+        url_attr = st.text_input("URL attr", "href", help="Attribute that holds the URL. Usually 'href'.")
+        date_css = st.text_input("Date CSS", "time", help="CSS (relative to each item) for the date/time element. Examples: 'time', '.meta time', 'span.date'.")
+        date_attr = st.text_input("Date attr", "datetime", help="Attribute that holds the datetime when available. Common: 'datetime'. Leave empty to extract text.")
+    with right:
+        section_css = st.text_input("Section CSS", "", help="CSS (relative to each item) for the section/category label (optional). Example: '.section'.")
+        summary_css = st.text_input("Summary CSS", "", help="CSS (relative to each item) for a short summary/excerpt (optional). Example: 'p.summary'.")
+
+else:
+    st.subheader("JSON selectors")
+    st.caption("Configure how to extract fields from the JSON payload.")
+
+    left, right = st.columns(2)
+    with left:
+        json_list_path = st.text_input(
+            "JSON list path",
+            "",
+            help="Dot-separated path to the list of items. Leave empty if the top-level JSON is already a list.",
+        )
+        json_title_key = st.text_input(
+            "Title key",
+            "title",
+            help="Key in each JSON item for the title (e.g. 'title').",
+        )
+        json_url_key = st.text_input(
+            "URL key",
+            "url",
+            help="Key in each JSON item for the article URL or ID (e.g. 'url').",
+        )
+        json_url_template = st.text_input(
+            "URL template",
+            "",
+            help=(
+                "Optional Python-style template to build the URL from JSON fields. "
+                "Example for AMNA: 'https://www.amna.gr/{note2}/{kind}/{note3}'. "
+                "If this is non-empty, it is used instead of URL key."
+            ),
+        )
+        json_date_key = st.text_input(
+            "Date key",
+            "",
+            help="Optional key for date/datetime (e.g. 'c_daytime').",
+        )
+    with right:
+        json_section_key = st.text_input(
+            "Section key",
+            "",
+            help="Optional key for section/category.",
+        )
+        json_summary_key = st.text_input(
+            "Summary key",
+            "",
+            help="Optional key for summary/excerpt.",
+        )
 
 if st.button("Preview extraction"):
     html_cache = st.session_state.get("html_cache") or ""
     base = st.session_state.get("final_url") or ""
+    is_json = st.session_state.get("is_json", False)
+
+    # For HTML: require Main container if Item CSS is set
+    if not is_json and item_css.strip() and not main_container.strip():
+        st.error(
+            "Cannot preview: Item CSS is set but Main container CSS is empty. "
+            "Please provide a Main container selector first."
+        )
+        st.stop()
+
     if not html_cache:
         st.warning("Fetch the page first.")
     else:
-        fields = {
-            "title": Selector(type="css", query=title_css),
-            "url":   Selector(type="css", query=url_css, attr=url_attr),
-        }
-        if date_css:    fields["date"]    = Selector(type="css", query=date_css, attr=date_attr or None)
-        if section_css: fields["section"] = Selector(type="css", query=section_css)
-        if summary_css: fields["summary"] = Selector(type="css", query=summary_css)
-        fm = FieldMap(**fields)  # type: ignore
-        rows = extract_items(html_cache, fm, container_css=main_container or None, item_css=item_css or None)
-        rows = normalize_rows(rows, base_url=base)
-        df = pd.DataFrame(rows)
-        for col in REQUIRED_COLS:
-            if col not in df.columns: df[col] = None
-        df = df[[c for c in REQUIRED_COLS if c in df.columns] + [c for c in df.columns if c not in REQUIRED_COLS]]
-        with st.expander("Selector diagnostics"):
-            st.json(selector_diagnostics(html_cache, fm, container_css=main_container or None, item_css=item_css or None))
-        st.dataframe(df, width='stretch')
+        if not is_json:
+            # HTML mode: existing behavior
+            fields = {
+                "title": Selector(type="css", query=title_css),
+                "url":   Selector(type="css", query=url_css, attr=url_attr),
+            }
+            if date_css:
+                fields["date"] = Selector(type="css", query=date_css, attr=date_attr or None)
+            if section_css:
+                fields["section"] = Selector(type="css", query=section_css)
+            if summary_css:
+                fields["summary"] = Selector(type="css", query=summary_css)
+            fm = FieldMap(**fields)  # type: ignore
+            rows = extract_items(html_cache, fm, container_css=main_container or None, item_css=item_css or None)
+            rows = normalize_rows(rows, base_url=base)
+            df = pd.DataFrame(rows)
+            for col in REQUIRED_COLS:
+                if col not in df.columns:
+                    df[col] = None
+            df = df[[c for c in REQUIRED_COLS if c in df.columns] + [c for c in df.columns if c not in REQUIRED_COLS]]
+            with st.expander("Selector diagnostics"):
+                st.json(selector_diagnostics(html_cache, fm, container_css=main_container or None, item_css=item_css or None))
+            st.dataframe(df, width='stretch')
+
+        else:
+            # JSON mode
+            try:
+                data = st.session_state.get("json_cache") or json.loads(html_cache)
+            except json.JSONDecodeError:
+                st.error("Response is not valid JSON.")
+                st.stop()
+
+            # Drill down to list of items if a path is provided
+            items = data
+            if json_list_path.strip():
+                for part in json_list_path.split("."):
+                    if isinstance(items, dict):
+                        items = items.get(part, [])
+                    else:
+                        items = []
+                        break
+
+            # If still not a list, maybe top-level is already a list
+            if not isinstance(items, list):
+                if isinstance(data, list):
+                    items = data
+                else:
+                    st.error("JSON list path does not point to a list of items, and top-level JSON is not a list.")
+                    st.stop()
+
+            rows = []
+            for obj in items:
+                if not isinstance(obj, dict):
+                    continue
+
+                # URL: if a template is given, use it; otherwise fall back to json_url_key
+                url_val = None
+                if json_url_template:
+                    try:
+                        # This will substitute {note2}, {kind}, {note3}, etc. from the JSON object
+                        url_val = json_url_template.format(**obj)
+                    except Exception as e:
+                        # if something is missing or wrong, keep it None
+                        url_val = None
+                elif json_url_key:
+                    url_val = obj.get(json_url_key)
+
+                row = {
+                    "title":   obj.get(json_title_key) if json_title_key else None,
+                    "url":     url_val,
+                    "date":    obj.get(json_date_key)  if json_date_key else None,
+                    "section": obj.get(json_section_key) if json_section_key else None,
+                    "summary": obj.get(json_summary_key) if json_summary_key else None,
+                }
+                rows.append(row)
+
+            # Normalize rows (e.g. resolve URL against base, enforce REQUIRED_COLS)
+            rows = normalize_rows(rows, base_url=base)
+            df = pd.DataFrame(rows)
+            for col in REQUIRED_COLS:
+                if col not in df.columns:
+                    df[col] = None
+            df = df[[c for c in REQUIRED_COLS if c in df.columns] + [c for c in df.columns if c not in REQUIRED_COLS]]
+            st.dataframe(df, width='stretch')
 
 st.divider()
 st.subheader("Save as YAML spec")
@@ -190,16 +379,41 @@ map_val = st.text_input("Map value", "", help="Mapped value (value). Example: 't
 
 if st.button("Save spec"):
     key = normalize_site_key(site_key_raw, base_url=base_url)
-    fields_yaml = {
-        "title": {"type":"css", "query": title_css},
-        "url":   {"type":"css", "query": url_css, "attr": url_attr},
-    }
-    if date_css:
-        fields_yaml["date"] = {"type":"css", "query": date_css, "attr": (date_attr or None)}
-    if section_css:
-        fields_yaml["section"] = {"type":"css", "query": section_css}
-    if summary_css:
-        fields_yaml["summary"] = {"type":"css", "query": summary_css}
+    is_json = st.session_state.get("is_json", False)
+
+    # For HTML: require Main container if Item CSS is set
+    if not is_json and item_css.strip() and not main_container.strip():
+        st.error(
+            "Cannot save spec: Item CSS is set but Main container CSS is empty. "
+            "For HTML scrapers, all items must be scoped inside a Main container."
+        )
+        st.stop()
+
+    if not is_json:
+        # HTML: keep existing CSS-based selector spec
+        fields_yaml = {
+            "title": {"type": "css", "query": title_css},
+            "url":   {"type": "css", "query": url_css, "attr": url_attr},
+        }
+        if date_css:
+            fields_yaml["date"] = {"type": "css", "query": date_css, "attr": (date_attr or None)}
+        if section_css:
+            fields_yaml["section"] = {"type": "css", "query": section_css}
+        if summary_css:
+            fields_yaml["summary"] = {"type": "css", "query": summary_css}
+    else:
+        # JSON: store JSON keys as selectors with type 'json_key'
+        fields_yaml = {}
+        if json_title_key:
+            fields_yaml["title"] = {"type": "json_key", "query": json_title_key}
+        if json_url_key:
+            fields_yaml["url"] = {"type": "json_key", "query": json_url_key}
+        if json_date_key:
+            fields_yaml["date"] = {"type": "json_key", "query": json_date_key}
+        if json_section_key:
+            fields_yaml["section"] = {"type": "json_key", "query": json_section_key}
+        if json_summary_key:
+            fields_yaml["summary"] = {"type": "json_key", "query": json_summary_key}
 
     spec_yaml = {
         "name": f"{key}_{category}",
@@ -222,6 +436,14 @@ if st.button("Save spec"):
         "main_container_css": (main_container or None),
         "item_css": (item_css or None),
     }
+    # Tell the core if this is JSON or HTML
+    spec_yaml["response_type"] = "json" if is_json else "html"
+    # If this is a JSON-based spec and a URL template is defined, store it
+    if is_json and json_url_template:
+        spec_yaml["json_url_template"] = json_url_template
+    # If this is a JSON-based spec and a list path is defined, store it
+    if is_json and json_list_path:
+        spec_yaml["json_list_path"] = json_list_path
 
     if category == "search":
         spec_yaml["search_term_mode"] = search_term_mode

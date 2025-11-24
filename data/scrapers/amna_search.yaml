@@ -1,0 +1,30 @@
+name: amna_search
+base_url: https://www.amna.gr
+start_url: https://www.amna.gr/feeds/getfolder.php?id=46&infolevel=INTERMEDIATE&offset=0&numrows=20&kind=article,videos&subfolders=true&order=[[%22id%22,%22desc%22]]&exclude=&token={s}&tags=
+selectors:
+  title:
+    type: json_key
+    query: title
+  date:
+    type: json_key
+    query: c_daytime
+  section:
+    type: json_key
+    query: parent_title
+pagination:
+  mode: param
+  template: null
+  param: offset
+  first_page: 0
+  per_page: 20
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+main_container_css: null
+item_css: null
+response_type: json
+json_url_template: https://www.amna.gr/{note2}/{kind}/{id}/{note3}
+search_term_mode: raw

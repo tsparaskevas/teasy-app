@@ -2,7 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 from typing import Optional, Literal, Dict
 
-SelectorType = Literal["css", "xpath"]
+SelectorType = Literal["css", "xpath", "json_key"]
 CategoryType = Literal["all", "search", "opinion", "other"]
 SearchTermMode = Literal["raw", "greeklish"]
 
@@ -21,7 +21,7 @@ class Pagination(BaseModel):
 
 class FieldMap(BaseModel):
     title: Selector
-    url: Selector
+    url: Optional[Selector] = None
     date: Optional[Selector] = None
     summary: Optional[Selector] = None
     section: Optional[Selector] = None
@@ -45,6 +45,12 @@ class ScraperSpec(BaseModel):
 
     main_container_css: Optional[str] = None
     item_css: Optional[str] = None
+
+    response_type: Literal["html", "json"] = "html"
+
+    # for JSON payloads
+    json_list_path: Optional[str] = None          # e.g. "items" if items are under data["items"]
+    json_url_template: Optional[str] = None       # e.g. "https://www.amna.gr/{note2}/{kind}/{id}/{note3}"
 
     @field_validator("max_pages")
     @classmethod
