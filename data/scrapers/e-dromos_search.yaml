@@ -1,0 +1,30 @@
+name: e-dromos_search
+base_url: https://edromos.gr
+start_url: https://edromos.gr/page/1/?s={s}
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+pagination:
+  mode: path
+  template: https://edromos.gr/page/{page}/?s={s}
+  param: page
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+main_container_css: div.td-ss-main-content
+item_css: div.td-block-span4
+search_term_mode: raw

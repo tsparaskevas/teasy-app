@@ -1,0 +1,35 @@
+name: athensvoice_all
+base_url: https://www.athensvoice.gr
+start_url: https://www.athensvoice.gr/news/?pg=1
+selectors:
+  title:
+    type: css
+    query: a.article__title
+  url:
+    type: css
+    query: a.article__title
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: a.article__category
+  summary:
+    type: css
+    query: p
+pagination:
+  mode: param
+  param: pg
+  template: null
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: true
+headers: {}
+category: all
+is_chronological: true
+main_container_css: div.articles.articles--singleColumn.articles--large
+item_css: article.article.article--inlineSquareFullLarge

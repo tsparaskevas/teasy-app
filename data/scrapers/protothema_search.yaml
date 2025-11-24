@@ -1,0 +1,36 @@
+name: protothema_search
+base_url: https://www.protothema.gr
+start_url: https://www.protothema.gr/anazitisi/$component/Main[0]/?pg=1&section=Articles&q={s}&srt=10&pg=1&endless=true
+selectors:
+  title:
+    type: css
+    query: h3 a
+  url:
+    type: css
+    query: h3 a
+    attr: href
+  date:
+    type: css
+    query: time
+    attr: datetime
+  section:
+    type: css
+    query: a.categ
+  summary:
+    type: css
+    query: div.txt
+pagination:
+  mode: param
+  template: null
+  param: pg
+  first_page: 1
+  per_page: null
+  template_vars: {}
+max_pages: 3
+js_required: false
+headers: {}
+category: search
+is_chronological: true
+main_container_css: body
+item_css: article
+search_term_mode: raw
