@@ -21,12 +21,14 @@ pagination:
   template: https://www.efsyn.gr/search?keywords={s}&_wrapper_format=html&page={page}
   param: page
   first_page: 1
+  per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
 main_container_css: div.default-list
 item_css: article
+response_type: html
 search_term_mode: raw

@@ -1,6 +1,6 @@
 name: protothema_search
 base_url: https://www.protothema.gr
-start_url: https://www.protothema.gr/anazitisi/$component/Main[0]/?pg=1&section=Articles&q={s}&srt=10&pg=1&endless=true
+start_url: https://www.protothema.gr/anazitisi/$component/Main%5B0%5D/?pg=1&section=Articles&q={s}&srt=10&pg=1&endless=true
 selectors:
   title:
     type: css
@@ -18,11 +18,11 @@ selectors:
     query: a.categ
   summary:
     type: css
-    query: div.txt
+    query: p
 pagination:
-  mode: param
-  template: null
-  param: pg
+  mode: path
+  template: https://www.protothema.gr/anazitisi/$component/Main%5B0%5D/?pg={page}&section=Articles&q={s}&srt=10&pg=1&endless=true
+  param: page
   first_page: 1
   per_page: null
   template_vars: {}
@@ -31,6 +31,7 @@ js_required: false
 headers: {}
 category: search
 is_chronological: true
-main_container_css: body
+main_container_css: .searchItems
 item_css: article
+response_type: html
 search_term_mode: raw

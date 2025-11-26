@@ -15,7 +15,7 @@ pagination:
   mode: param
   template: null
   param: offset
-  first_page: 0
+  first_page: 1
   per_page: 20
   template_vars: {}
 max_pages: 3

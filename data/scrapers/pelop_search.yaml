@@ -29,4 +29,5 @@ category: search
 is_chronological: true
 main_container_css: div.results-article-list
 item_css: div.result-article
+response_type: html
 search_term_mode: raw

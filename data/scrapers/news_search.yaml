@@ -1,6 +1,6 @@
 name: news_search
 base_url: https://www.news.gr
-start_url: https://example.com/search?page=1&q={s}
+start_url: https://www.news.gr/search?page=1&q={s}
 selectors:
   title:
     type: css
@@ -27,10 +27,11 @@ pagination:
   per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
 main_container_css: div.main-column
 item_css: article.post
+response_type: html
 search_term_mode: raw

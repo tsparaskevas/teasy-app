@@ -27,4 +27,5 @@ category: search
 is_chronological: true
 main_container_css: div.td-ss-main-content
 item_css: div.td-block-span4
+response_type: html
 search_term_mode: raw

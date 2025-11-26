@@ -30,4 +30,5 @@ category: search
 is_chronological: true
 main_container_css: div.article_group__posts__container
 item_css: article
+response_type: html
 search_term_mode: raw

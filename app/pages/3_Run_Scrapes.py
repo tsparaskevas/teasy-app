@@ -2,6 +2,7 @@ from __future__ import annotations
 import sys
 import re
 from pathlib import Path
+import time
 
 def _add_project_root(marker="teasy_core"):
     here = Path(__file__).resolve()
@@ -153,7 +154,7 @@ auto_all_if_not_chrono = st.checkbox(
 
 per_site_timeout = st.number_input(
     "Per-site timeout (seconds)",
-    min_value=30, max_value=3600, value=180,
+    min_value=30, max_value=3600, value=240,
     help="If a site takes longer than this, it is marked as 'timeout', scraping is stoped for this site, the URL that timed out is showed, and scraping continues with the next site (if applicable)."
 )
 
@@ -227,6 +228,11 @@ if run_clicked:
             f"Scraping **{spec.name}** — pages: {pages_label}"
             + (f" — term: '{term_in}' → '{term_used}', slug: '{slug_part[1:]}'" if spec.category=='search' else "")
         )
+
+        # Single-line status for "current URL being scraped"
+        current_url_placeholder = st.empty()
+        current_url_placeholder.caption("Waiting for first URL…")
+
         with st.expander(f"Planned URLs for {spec.name}"):
             st.caption("Preview of the exact URLs that will be requested for this spec.")
             for u in urls:
@@ -237,11 +243,13 @@ if run_clicked:
         rows = 0
         events = SimpleQueue()
         last_partial = {"file": None}
+        last_fetch = {"url": None, "page": None}
+
         def _on_progress(ev: dict):
             try:
                 events.put_nowait(ev)
+                # remember where runner is appending partials
                 if ev.get("event") == "partial_append" and ev.get("file"):
-                    # remember where runner is appending
                     last_partial["file"] = ev["file"]
             except Exception:
                 pass
@@ -259,7 +267,55 @@ if run_clicked:
                     page_to=effective_page_to,
                     progress=_on_progress,
                 )
-                df = fut.result(timeout=per_site_timeout)
+
+                # track time from last successful fetch
+                last_progress_ts = time.time()
+
+                # Loop in main thread
+                while True:
+                    # empty events tail
+                    try:
+                        while True:
+                            ev = events.get_nowait()
+
+                            # progress event: start new fetch
+                            if ev.get("event") == "fetch_start" and ev.get("url"):
+                                url = ev["url"]
+                                page = ev.get("page")
+
+                                # store last page/url
+                                last_fetch["url"] = url
+                                last_fetch["page"] = page
+
+                                # reset idle timer
+                                last_progress_ts = time.time()
+
+                                # update UI
+                                if page is not None:
+                                    label = f"Current page {page}: {url}"
+                                else:
+                                    label = f"Current URL: {url}"
+                                current_url_placeholder.caption(label)
+
+                            # track partial_append
+                            if ev.get("event") == "partial_append":
+                                last_progress_ts = time.time()
+
+                    except Empty:
+                        pass
+
+                    # if future is done, break
+                    if fut.done():
+                        break
+
+                    # flag timeout only if there was no progress for Χ seconds
+                    if per_site_timeout and (time.time() - last_progress_ts > per_site_timeout):
+                        raise concurrent.futures.TimeoutError()
+
+                    time.sleep(0.1)
+
+                # if no TimeoutError, everything's good
+                df = fut.result()
 
             rows = len(df)
 
@@ -273,6 +329,12 @@ if run_clicked:
             before, added, total = save_or_merge_csv(df, OUTPUT_DIR / out_name)
             st.success(f"{base_norm} — +{added} / total {total} rows ✅ saved to data/outputs/{out_name}")
             msg = f"added={added}, total={total}"
+            # Auto-clean partial file for this run (if any)
+            if last_partial["file"]:
+                try:
+                    Path(last_partial["file"]).unlink(missing_ok=True)
+                except Exception as e_del:
+                    st.warning(f"Could not delete partial file {last_partial['file']}: {e_del}")
 
         except concurrent.futures.TimeoutError:
             status = "timeout"
@@ -291,30 +353,30 @@ if run_clicked:
                         dfp = dfp.drop_duplicates(subset=["url"], keep="first")
                     before, added, total = save_or_merge_csv(dfp, OUTPUT_DIR / out_name)
                     st.success(f"{base_norm} — +{added} / total {total} rows ✅ (from partial)")
+                    # Auto-clean partial file after using it
+                    try:
+                        Path(last_partial["file"]).unlink(missing_ok=True)
+                    except Exception as e_del:
+                        st.warning(f"Could not delete partial file {last_partial['file']}: {e_del}")
+
             except Exception as e_part:
                 st.warning(f"Could not merge partial rows: {e_part}")
-            last = None
-            try:
-                while True:
-                    last = events.get_nowait()
-            except Empty:
-                pass
-            if last and last.get("event") == "fetch_start":
-                st.warning(f"Last URL before timeout: {last.get('url')}  (page {last.get('page')})")
+            if last_fetch["url"]:
+                if last_fetch["page"] is not None:
+                    st.warning(f"Last URL before timeout: {last_fetch['url']}  (page {last_fetch['page']})")
+                else:
+                    st.warning(f"Last URL before timeout: {last_fetch['url']}")
 
         except Exception as e:
             status = "fail"
             msg = f"{type(e).__name__}: {e}"
             st.error(f"{spec.name} ⏱ {msg}")
-            # Drain queue to get the latest started URL
-            last = None
-            try:
-                while True:
-                    last = events.get_nowait()
-            except Empty:
-                pass
-            if last and last.get("event") == "fetch_start":
-                st.warning(f"Last URL before timeout: {last.get('url')}  (page {last.get('page')})")
+
+            if last_fetch["url"]:
+                if last_fetch["page"] is not None:
+                    st.warning(f"Last URL before error: {last_fetch['url']}  (page {last_fetch['page']})")
+                else:
+                    st.warning(f"Last URL before error: {last_fetch['url']}")
 
             # Show the tail of the traceback for quick debugging
             tb = "".join(traceback.format_exc())

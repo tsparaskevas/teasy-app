@@ -6,6 +6,8 @@ from urllib.parse import quote_plus, urlparse, parse_qsl, urlencode, urlunparse
 import pandas as pd
 import re
 import json
+import time
+import random
 
 from .models import ScraperSpec
 from .fetcher import HybridFetcher
@@ -247,7 +249,10 @@ def run_scraper(
       - page_from & page_to: fetch inclusive range.
       - pages=N: fetch N pages starting at (page_from or first_page).
     """
-    fetcher = HybridFetcher(js_required=spec.js_required, page_load_strategy="eager")
+    # fetcher_plain (Requests, js_required=False)
+    fetcher_plain = HybridFetcher(js_required=False, page_load_strategy="eager")
+    # fetcher_js (Selenium, js_required=True)
+    fetcher_js = HybridFetcher(js_required=True, page_load_strategy="eager")
     all_rows: List[Dict] = []
 
     start_page = page_from if page_from is not None else spec.pagination.first_page
@@ -255,7 +260,7 @@ def run_scraper(
     # === incremental saving setup ===
     # Data directory: repo_root/data/outputs/_partial/<spec-name>_<run-id>.csv
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[1]
     partial_dir = repo_root / "data" / "outputs" / "_partial"
     partial_dir.mkdir(parents=True, exist_ok=True)
     partial_path = partial_dir / f"{slugify(spec.name)}_{run_id}.csv"
@@ -270,109 +275,254 @@ def run_scraper(
         if progress:
             progress({"event": "partial_append", "rows": len(dfp), "file": str(partial_path)})
 
+    # === main fetch logic ===
+
     if fetch_all:
         fetched = 0
+        max_empty_pages = 2
+        empty_streak = 0
+        prev_page_urls: Set[str] | None = None
         while True:
             current = start_page + fetched
             if page_to is not None and current > page_to:
                 break
             target_url = page_url(spec, current, vars)
             if progress:
-                progress({"event":"fetch_start","page": current, "url": target_url, "site": spec.name})
+                progress({"event": "fetch_start", "page": current, "url": target_url, "site": spec.name})
             try:
-                final_url, html = fetcher.get(
-                    target_url,
-                    headers=spec.headers,
-                    wait_for_css=(spec.item_css or spec.main_container_css or None),
-                    wait_timeout=20,
-                )
+                # 1) If JS required in spec -> use Selenium
+                if spec.js_required:
+                    final_url, html = fetcher_js.get(
+                        target_url,
+                        headers=spec.headers,
+                        wait_for_css=(spec.item_css or spec.main_container_css or None),
+                        wait_timeout=20,
+                    )
+                    if spec.response_type == "json":
+                        rows = _extract_from_json(spec, html)
+                        rows = normalize_rows(rows, base_url=final_url)
+                    else:
+                        rows = extract_items(
+                            html,
+                            spec.selectors,
+                            container_css=spec.main_container_css,
+                            item_css=spec.item_css,
+                        )
+                        rows = normalize_rows(rows, base_url=final_url)
+                else:
+                    # 2) Try Requests first
+                    final_url, html = fetcher_plain.get(
+                        target_url,
+                        headers=spec.headers,
+                        wait_for_css=(spec.item_css or spec.main_container_css or None),
+                        wait_timeout=20,
+                    )
+                    if spec.response_type == "json":
+                        rows = _extract_from_json(spec, html)
+                        rows = normalize_rows(rows, base_url=final_url)
+                    else:
+                        rows = extract_items(
+                            html,
+                            spec.selectors,
+                            container_css=spec.main_container_css,
+                            item_css=spec.item_css,
+                        )
+                        rows = normalize_rows(rows, base_url=final_url)
+
+                        # 3) If nothing found and it's HTML -> try fallback to Selenium
+                        if not rows:
+                            final_url, html = fetcher_js.get(
+                                target_url,
+                                headers=spec.headers,
+                                wait_for_css=(spec.item_css or spec.main_container_css or None),
+                                wait_timeout=20,
+                            )
+                            rows = extract_items(
+                                html,
+                                spec.selectors,
+                                container_css=spec.main_container_css,
+                                item_css=spec.item_css,
+                            )
+                            rows = normalize_rows(rows, base_url=final_url)
+
             except Exception as e:
-                # If we already fetched some pages and we're in "ALL" mode,
-                # treat a timeout/404 as "we reached the end" instead of failing the whole site.
+                # In fetch_all mode, if we've already fetched some pages
+                # and get a timeout/404, treat it as "end of pages"
                 is_timeout = e.__class__.__name__.lower().endswith("timeout")
                 is_http404 = getattr(getattr(e, "response", None), "status_code", None) == 404
                 if fetched > 0 and (is_timeout or is_http404):
                     if progress:
-                        progress({"event":"assume_end","page": current, "url": target_url, "reason": str(e)})
+                        progress({"event": "assume_end", "page": current, "url": target_url, "reason": str(e)})
                     break
                 raise
-            if spec.response_type == "json":
-                rows = _extract_from_json(spec, html)
-                rows = normalize_rows(rows, base_url=final_url)
-            else:
-                rows = extract_items(
-                    html,
-                    spec.selectors,
-                    container_css=spec.main_container_css,
-                    item_css=spec.item_css,
-                )
-                rows = normalize_rows(rows, base_url=final_url)
 
             if not rows:
+                empty_streak += 1
+                if empty_streak >= max_empty_pages:
+                    break
+                else:
+                    fetched += 1
+                    continue
+            else:
+                empty_streak = 0
+
+            # detect duplicate pages (same URLs as previous page)
+            # Collect URLs for this page (non-empty strings)
+            page_urls = {r.get("url") for r in rows if r.get("url")}
+            if prev_page_urls is not None and page_urls and page_urls == prev_page_urls:
+                # Same URL set as previous page
+                # Some sites like skai recycle the last page indefinitely. Treat this as "end of pages".
+                if progress:
+                    progress({
+                        "event": "assume_end_duplicate",
+                        "page": current,
+                        "url": target_url,
+                        "reason": "duplicate_page_urls",
+                    })
                 break
+            prev_page_urls = page_urls
 
             all_rows.extend(rows)
-            # incremental checkpoint
             _append_partial(rows)
+            time.sleep(random.uniform(0.5, 1.8))
             fetched += 1
             if fetched >= hard_max_pages:
                 break
 
     elif page_from is not None and page_to is not None:
+        # Explicit page range
         for p in range(page_from, page_to + 1):
             target_url = page_url(spec, p, vars)
             if progress:
-                progress({"event":"fetch_start","page": p, "url": target_url, "site": spec.name})
-            final_url, html = fetcher.get(
-                target_url,
-                headers=spec.headers,
-                wait_for_css=(spec.item_css or spec.main_container_css or None),
-                wait_timeout=20,
-            )
-            if spec.response_type == "json":
-                rows = _extract_from_json(spec, html)
-                rows = normalize_rows(rows, base_url=final_url)
-            else:
-                rows = extract_items(
-                    html,
-                    spec.selectors,
-                    container_css=spec.main_container_css,
-                    item_css=spec.item_css,
+                progress({"event": "fetch_start", "page": p, "url": target_url, "site": spec.name})
+
+            if spec.js_required:
+                final_url, html = fetcher_js.get(
+                    target_url,
+                    headers=spec.headers,
+                    wait_for_css=(spec.item_css or spec.main_container_css or None),
+                    wait_timeout=20,
                 )
-                rows = normalize_rows(rows, base_url=final_url)
+                if spec.response_type == "json":
+                    rows = _extract_from_json(spec, html)
+                    rows = normalize_rows(rows, base_url=final_url)
+                else:
+                    rows = extract_items(
+                        html,
+                        spec.selectors,
+                        container_css=spec.main_container_css,
+                        item_css=spec.item_css,
+                    )
+                    rows = normalize_rows(rows, base_url=final_url)
+            else:
+                # Requests first
+                final_url, html = fetcher_plain.get(
+                    target_url,
+                    headers=spec.headers,
+                    wait_for_css=(spec.item_css or spec.main_container_css or None),
+                    wait_timeout=20,
+                )
+                if spec.response_type == "json":
+                    rows = _extract_from_json(spec, html)
+                    rows = normalize_rows(rows, base_url=final_url)
+                else:
+                    rows = extract_items(
+                        html,
+                        spec.selectors,
+                        container_css=spec.main_container_css,
+                        item_css=spec.item_css,
+                    )
+                    rows = normalize_rows(rows, base_url=final_url)
+
+                    # fallback to Selenium if HTML + 0 rows
+                    if not rows:
+                        final_url, html = fetcher_js.get(
+                            target_url,
+                            headers=spec.headers,
+                            wait_for_css=(spec.item_css or spec.main_container_css or None),
+                            wait_timeout=20,
+                        )
+                        rows = extract_items(
+                            html,
+                            spec.selectors,
+                            container_css=spec.main_container_css,
+                            item_css=spec.item_css,
+                        )
+                        rows = normalize_rows(rows, base_url=final_url)
 
             all_rows.extend(rows)
             _append_partial(rows)
+            time.sleep(random.uniform(0.5, 1.8))
 
     else:
+        # pages = N starting from start_page
         if not pages:
             pages = 1
         for i in range(pages):
             p = start_page + i
             target_url = page_url(spec, p, vars)
             if progress:
-                progress({"event":"fetch_start","page": p, "url": target_url, "site": spec.name})
-            final_url, html = fetcher.get(
-                target_url,
-                headers=spec.headers,
-                wait_for_css=(spec.item_css or spec.main_container_css or None),
-                wait_timeout=20,
-            )
-            if spec.response_type == "json":
-                rows = _extract_from_json(spec, html)
-                rows = normalize_rows(rows, base_url=final_url)
-            else:
-                rows = extract_items(
-                    html,
-                    spec.selectors,
-                    container_css=spec.main_container_css,
-                    item_css=spec.item_css,
+                progress({"event": "fetch_start", "page": p, "url": target_url, "site": spec.name})
+
+            if spec.js_required:
+                final_url, html = fetcher_js.get(
+                    target_url,
+                    headers=spec.headers,
+                    wait_for_css=(spec.item_css or spec.main_container_css or None),
+                    wait_timeout=20,
                 )
-                rows = normalize_rows(rows, base_url=final_url)
+                if spec.response_type == "json":
+                    rows = _extract_from_json(spec, html)
+                    rows = normalize_rows(rows, base_url=final_url)
+                else:
+                    rows = extract_items(
+                        html,
+                        spec.selectors,
+                        container_css=spec.main_container_css,
+                        item_css=spec.item_css,
+                    )
+                    rows = normalize_rows(rows, base_url=final_url)
+            else:
+                # Requests first
+                final_url, html = fetcher_plain.get(
+                    target_url,
+                    headers=spec.headers,
+                    wait_for_css=(spec.item_css or spec.main_container_css or None),
+                    wait_timeout=20,
+                )
+                if spec.response_type == "json":
+                    rows = _extract_from_json(spec, html)
+                    rows = normalize_rows(rows, base_url=final_url)
+                else:
+                    rows = extract_items(
+                        html,
+                        spec.selectors,
+                        container_css=spec.main_container_css,
+                        item_css=spec.item_css,
+                    )
+                    rows = normalize_rows(rows, base_url=final_url)
+
+                    # fallback to Selenium if HTML + 0 rows
+                    if not rows:
+                        final_url, html = fetcher_js.get(
+                            target_url,
+                            headers=spec.headers,
+                            wait_for_css=(spec.item_css or spec.main_container_css or None),
+                            wait_timeout=20,
+                        )
+                        rows = extract_items(
+                            html,
+                            spec.selectors,
+                            container_css=spec.main_container_css,
+                            item_css=spec.item_css,
+                        )
+                        rows = normalize_rows(rows, base_url=final_url)
 
             all_rows.extend(rows)
             _append_partial(rows)
+            time.sleep(random.uniform(0.5, 1.8))
 
+    # Build final DataFrame
     df = pd.DataFrame(all_rows)
 
     if "url" in df.columns:
@@ -402,4 +552,5 @@ def run_scraper(
         df = df.drop_duplicates(subset=["url"], keep="last")
 
     return df
+
 

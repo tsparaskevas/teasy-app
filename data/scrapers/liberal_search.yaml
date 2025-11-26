@@ -7,12 +7,15 @@ selectors:
     query: div.article__title
   url:
     type: css
-    query: div.article__info a
+    query: a:first-child
     attr: href
   date:
     type: css
-    query: div.article__info a
+    query: div.article__info
     attr: null
+  section:
+    type: css
+    query: div.article__info a:nth-of-type(2)
   summary:
     type: css
     query: div.article__descr
@@ -24,10 +27,11 @@ pagination:
   per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
-main_container_css: null
-item_css: div.article
+main_container_css: div#block-liberal-theme-content:nth-of-type(2)
+item_css: div.container.px-0.mb-md-3.h-100.border-md-bottom
+response_type: html
 search_term_mode: raw

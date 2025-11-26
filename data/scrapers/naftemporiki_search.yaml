@@ -27,10 +27,11 @@ pagination:
   per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
-main_container_css: null
+main_container_css: div.col-xl-7.col-sm-12.mb-5
 item_css: div.item div.g-col-9
+response_type: html
 search_term_mode: raw

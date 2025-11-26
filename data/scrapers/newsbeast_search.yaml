@@ -21,14 +21,13 @@ pagination:
   per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
-main_container_css: null
+main_container_css: main.tagPage
 item_css: article.articleCard
+response_type: html
 search_term_mode: raw
 search_term_map:
   Τέμπη: dustuxima-sta-tempi
-  ΟΠΕΚΕΠΕ: opekepe
-

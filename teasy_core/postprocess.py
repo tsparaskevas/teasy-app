@@ -14,7 +14,7 @@ RE_DDMMYYYY_BULLET_HHMM = re.compile(
         (\d{1,2})[./-](\d{1,2})[./-](\d{2,4})     # DD/MM/YYYY
         \s*[-–—•\u00B7,|]\s*                      # dash/en/em dash/bullet/middle dot/comma/pipe
         (\d{1,2}):(\d{2})(?::(\d{2}))?            # HH:MM[:SS]
-        \s*(?:[•\u00B7|]\s*)?$                    # optional trailing bullet/middle dot/pipe
+        \s*(?:[•\u00B7|]\s*)?                     # optional trailing bullet/middle dot/pipe
     """, re.X
 )
 
@@ -269,6 +269,11 @@ def normalize_date(text: Optional[str]) -> Optional[str]:
     t = _preclean(text)
     now = datetime.now()
 
+    # Remove trailing category labels like "• ΠΟΛΙΤΙΚΗ", "• ΚΟΣΜΟΣ", etc.
+    # Keep only the part before the first Greek/English all-caps word.
+    # Example: "24/11/2025 • 14:30 • ΠΟΛΙΤΙΚΗ" → "24/11/2025 • 14:30"
+    t = re.split(r"\s*[•|,-]\s*[A-Zα-ωΑ-ΩΆΈΉΊΌΎΏάέήίόύώ]{3,}\s*$", t)[0].strip()
+
     # "x ago" forms
     ago = _apply_ago(now, t)
     if ago:
@@ -423,6 +428,17 @@ def normalize_date(text: Optional[str]) -> Optional[str]:
         try:
             dt = datetime(year=now.year, month=MM, day=dd, hour=hh, minute=mm)
             return dt.strftime("%Y-%m-%dT%H:%M")
+        except ValueError:
+            return None
+
+    # Special malformed form: "DD/MMYYYY" → treat "MMYYYY" as month+year
+    m = re.match(r"^\s*(\d{1,2})/(\d{2})(\d{4})\s*$", t)
+    if m:
+        dd_s, MM_s, yy_s = m.groups()
+        dd, MM, yy = int(dd_s), int(MM_s), int(yy_s)
+        try:
+            dt = datetime(year=yy, month=MM, day=dd)
+            return dt.strftime("%Y-%m-%d")
         except ValueError:
             return None
 

@@ -42,25 +42,177 @@ from urllib.parse import urlparse
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "data" / "scrapers"
 SCRAPER_DIR.mkdir(parents=True, exist_ok=True)
 
+def load_spec_to_ui(path: Path):
+    """It reads a YAML spec and fills the st.session_state fields for editing."""
+    try:
+        spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        st.error(f"Could not load spec {path.name}: {e}")
+        return
+
+    # e.g. "imerisia_search"
+    name = spec.get("name", path.stem)
+    if "_" in name:
+        site_key, cat = name.rsplit("_", 1)
+    else:
+        site_key, cat = name, spec.get("category", "all")
+
+    # Basic fields
+    st.session_state["site_key_raw"] = site_key
+    st.session_state["category"] = spec.get("category", cat)
+
+    st.session_state["base_url"] = spec.get("base_url", "")
+    st.session_state["start_url"] = spec.get("start_url", "")
+    # URL to Fetch: the start_url 
+    raw_start = spec.get("start_url", "") or ""
+    cat = spec.get("category", "search")
+    stm = spec.get("search_term_map") or {}
+
+    if cat == "search" and "{s}" in raw_start:
+        # If there is key mapping in yaml, take the first key as an example
+        if stm:
+            example_term = next(iter(stm.keys()))
+        else:
+            example_term = "Τέμπη"
+        url_for_fetch = raw_start.replace("{s}", example_term)
+    else:
+        url_for_fetch = raw_start
+
+    st.session_state["url"] = url_for_fetch
+
+    st.session_state["main_container"] = spec.get("main_container_css") or ""
+    st.session_state["item_css"] = spec.get("item_css") or ""
+
+    # Response type / JSON flags
+    resp_type = spec.get("response_type", "html")
+    st.session_state["response_type"] = resp_type
+    st.session_state["is_json"] = (resp_type == "json")
+
+    st.session_state["is_chronological"] = bool(spec.get("is_chronological", True))
+    st.session_state["force_js"] = bool(spec.get("js_required", False))
+
+    # Selectors
+    selectors = spec.get("selectors", {}) or {}
+
+    if resp_type == "html":
+        title_sel = selectors.get("title", {}) or {}
+        url_sel = selectors.get("url", {}) or {}
+        date_sel = selectors.get("date", {}) or {}
+        section_sel = selectors.get("section", {}) or {}
+        summary_sel = selectors.get("summary", {}) or {}
+
+        st.session_state["title_css"] = title_sel.get("query", "h2 a")
+        st.session_state["url_css"] = url_sel.get("query", "h2 a")
+        st.session_state["url_attr"] = url_sel.get("attr", "href") or ""
+
+        st.session_state["date_css"] = date_sel.get("query", "") or ""
+        st.session_state["date_attr"] = date_sel.get("attr", "") or ""
+
+        st.session_state["section_css"] = section_sel.get("query", "") or ""
+        st.session_state["summary_css"] = summary_sel.get("query", "") or ""
+
+    else:  # JSON
+        title_sel = selectors.get("title", {}) or {}
+        url_sel = selectors.get("url", {}) or {}
+        date_sel = selectors.get("date", {}) or {}
+        section_sel = selectors.get("section", {}) or {}
+        summary_sel = selectors.get("summary", {}) or {}
+
+        st.session_state["json_list_path"] = spec.get("json_list_path") or ""
+        st.session_state["json_url_template"] = spec.get("json_url_template") or ""
+
+        st.session_state["json_title_key"] = title_sel.get("query", "") or ""
+        st.session_state["json_url_key"] = url_sel.get("query", "") or ""
+        st.session_state["json_date_key"] = date_sel.get("query", "") or ""
+        st.session_state["json_section_key"] = section_sel.get("query", "") or ""
+        st.session_state["json_summary_key"] = summary_sel.get("query", "") or ""
+
+    # Pagination
+    pag = spec.get("pagination", {}) or {}
+    st.session_state["pagination_mode"] = pag.get("mode", "param")
+    st.session_state["pagination_template"] = pag.get("template") or ""
+    st.session_state["pagination_param"] = pag.get("param", "page") or "page"
+    st.session_state["first_page"] = int(pag.get("first_page", 1) or 1)
+    st.session_state["per_page"] = int(pag.get("per_page", 0) or 0)
+
+    # Search-related
+    st.session_state["search_term_mode"] = spec.get("search_term_mode", "raw") or "raw"
+    stm = spec.get("search_term_map") or {}
+    if stm:
+        k, v = next(iter(stm.items()))
+        st.session_state["map_key"] = k
+        st.session_state["map_val"] = v
+    else:
+        st.session_state["map_key"] = ""
+        st.session_state["map_val"] = ""
+
+
 st.title("0 · Build a Scraper")
 
-for k, v in {"final_url":"", "html_cache":"", "engine": "", "is_json": False, "json_cache": None,}.items():
+for k, v in {"final_url":"", "html_cache":"", "engine": "", "is_json": False, "json_cache": None, "site_key_raw": "", "category": "search", "response_type": "auto", "pagination_mode": "param", "search_term_mode": "raw", "main_container": "main_container", "item_css": "div.articles", "url": "", "title_css": "h2 a", "url_css": "h2 a", "url_attr": "href",}.items():
     st.session_state.setdefault(k, v)
 
-site_key_raw = st.text_input("Site key (filename prefix)", "capital", help="Used as the filename prefix for the YAML spec. Tip: leave blank to auto-derive from Base URL (e.g., 'dnews.gr' → 'dnews'). Examples: 'parapolitika', 'kathimerini'.")
-category = st.selectbox("Category", ["all","search","opinion"], index=1, help="Affects naming and search behavior. 'search' enables term mapping & {s} placeholder.")
+# Load existing spec (optional)
+spec_files = sorted(SCRAPER_DIR.glob("*.yaml"))
+options = ["— Load existing spec —"] + [f.name for f in spec_files]
+
+choice = st.selectbox(
+    "Load existing spec (optional)",
+    options,
+    index=0,
+    key="load_existing_choice",
+)
+
+if choice != "— Load existing spec —":
+    spec_path = SCRAPER_DIR / choice
+    if st.button("Load this spec", key="btn_load_spec"):
+        load_spec_to_ui(spec_path)
+        st.rerun()
+
+site_key_raw = st.text_input(
+    "Site key (filename prefix)",
+    help="Used as the filename prefix for the YAML spec. Tip: leave blank to auto-derive from Base URL (e.g., 'dnews.gr' → 'dnews'). Examples: 'parapolitika', 'kathimerini'.",
+    key="site_key_raw",
+)
+category = st.selectbox(
+    "Category",
+    ["all","search","opinion"],
+    help="Affects naming and search behavior. 'search' enables term mapping & {s} placeholder.",
+    key="category",
+)
 
 response_type = st.radio(
     "Response type",
     ["auto", "html", "json"],
-    index=0,
     horizontal=True,
-    help="auto: try to detect JSON vs HTML\nhtml: force HTML parsing with CSS selectors\njson: treat response as JSON"
+    help="auto: try to detect JSON vs HTML\nhtml: force HTML parsing with CSS selectors\njson: treat response as JSON",
+    key="response_type",
 )
 
-url = st.text_input("Teaser page URL (first page)", "", help="The first teaser/listing page you want to extract. Examples:\nhttps://www.parapolitika.gr/, https://www.protothema.gr/politics/?page=1, For search: https://site.gr/search?page=1&q={s}")
-main_container = st.text_input("Main container CSS (list wrapper)", "div.articles", help="CSS that wraps all teaser items (optional). Example: 'div.articles' or 'section#content'.")
-item_css = st.text_input("Item CSS (each teaser)", "article", help="CSS for each teaser card. Examples: 'article', 'li.result', 'div.teaser'.")
+# Keep is_json in sync with the chosen response_type
+if response_type == "json":
+    st.session_state["is_json"] = True
+elif response_type == "html":
+    st.session_state["is_json"] = False
+
+url = st.text_input(
+    "Teaser page URL (first page)",
+    help="The first teaser/listing page you want to extract. Examples:\nhttps://www.parapolitika.gr/, https://www.protothema.gr/politics/?page=1, For search: https://site.gr/search?page=1&q={s}",
+    key="url",
+)
+
+main_container = st.text_input(
+    "Main container CSS (list wrapper)",
+    help="CSS that wraps all teaser items (optional). Example: 'div.articles' or 'section#content'.",
+    key="main_container",
+)
+
+item_css = st.text_input(
+    "Item CSS (each teaser)",
+    help="CSS for each teaser card. Examples: 'article', 'li.result', 'div.teaser'.",
+    key="item_css",
+)
+
 # Enforce: if you use Item CSS in HTML mode, you must set Main container CSS
 is_json = st.session_state.get("is_json", False)
 
@@ -176,7 +328,12 @@ if st.session_state.get("final_url"):
         st.success(f"Fetched HTML via **{st.session_state['engine']}** → {st.session_state['final_url']}")
         soup = BeautifulSoup(raw, "lxml")
         mc = len(soup.select(main_container)) if main_container.strip() else 0
-        it = len(soup.select(item_css)) if item_css.strip() else 0
+        if main_container.strip() and item_css.strip():
+            containers = soup.select(main_container)
+            # count all items in each container
+            it = sum(len(container.select(item_css)) for container in containers)
+        else:
+            it = 0
         st.caption(f"Main container matches: {mc} — Item matches: {it}")
 
 # defaults so they exist in both modes (json, html)
@@ -195,14 +352,46 @@ if not is_json:
     st.subheader("Selectors (relative to Item CSS)")
     left, right = st.columns(2)
     with left:
-        title_css = st.text_input("Title CSS", "h2 a", help="CSS (relative to each item) for the title element. Example: 'h2 a' or '.title a'.")
-        url_css = st.text_input("URL CSS", "h2 a", help="CSS (relative to each item) that contains the article link. Usually the same as Title CSS (e.g., 'h2 a').")
-        url_attr = st.text_input("URL attr", "href", help="Attribute that holds the URL. Usually 'href'.")
-        date_css = st.text_input("Date CSS", "time", help="CSS (relative to each item) for the date/time element. Examples: 'time', '.meta time', 'span.date'.")
-        date_attr = st.text_input("Date attr", "datetime", help="Attribute that holds the datetime when available. Common: 'datetime'. Leave empty to extract text.")
+        title_css = st.text_input(
+            "Title CSS",
+            help="CSS (relative to each item) for the title element. Example: 'h2 a' or '.title a'.",
+            key="title_css",
+        )
+        url_css = st.text_input(
+            "URL CSS",
+            help="CSS (relative to each item) that contains the article link. Usually the same as Title CSS (e.g., 'h2 a').",
+            key="url_css",
+        )
+        url_attr = st.text_input(
+            "URL attr",
+            help="Attribute that holds the URL. Usually 'href'.",
+            key="url_attr",
+        )
+        date_css = st.text_input(
+            "Date CSS",
+            "time",
+            help="CSS (relative to each item) for the date/time element. Examples: 'time', '.meta time', 'span.date'.",
+            key="date_css",
+        )
+        date_attr = st.text_input(
+            "Date attr",
+            "datetime",
+            help="Attribute that holds the datetime when available. Common: 'datetime'. Leave empty to extract text.",
+            key="date_attr",
+        )
     with right:
-        section_css = st.text_input("Section CSS", "", help="CSS (relative to each item) for the section/category label (optional). Example: '.section'.")
-        summary_css = st.text_input("Summary CSS", "", help="CSS (relative to each item) for a short summary/excerpt (optional). Example: 'p.summary'.")
+        section_css = st.text_input(
+            "Section CSS",
+            "",
+            help="CSS (relative to each item) for the section/category label (optional). Example: '.section'.",
+            key="section_css",
+        )
+        summary_css = st.text_input(
+            "Summary CSS",
+            "",
+            help="CSS (relative to each item) for a short summary/excerpt (optional). Example: 'p.summary'.",
+            key="summary_css",
+        )
 
 else:
     st.subheader("JSON selectors")
@@ -214,16 +403,19 @@ else:
             "JSON list path",
             "",
             help="Dot-separated path to the list of items. Leave empty if the top-level JSON is already a list.",
+            key="json_list_path",
         )
         json_title_key = st.text_input(
             "Title key",
             "title",
             help="Key in each JSON item for the title (e.g. 'title').",
+            key="json_title_key",
         )
         json_url_key = st.text_input(
             "URL key",
             "url",
             help="Key in each JSON item for the article URL or ID (e.g. 'url').",
+            key="json_url_key",
         )
         json_url_template = st.text_input(
             "URL template",
@@ -233,22 +425,26 @@ else:
                 "Example for AMNA: 'https://www.amna.gr/{note2}/{kind}/{note3}'. "
                 "If this is non-empty, it is used instead of URL key."
             ),
+            key="json_url_template",
         )
         json_date_key = st.text_input(
             "Date key",
             "",
             help="Optional key for date/datetime (e.g. 'c_daytime').",
+            key="json_date_key",
         )
     with right:
         json_section_key = st.text_input(
             "Section key",
             "",
             help="Optional key for section/category.",
+            key="json_section_key",
         )
         json_summary_key = st.text_input(
             "Summary key",
             "",
             help="Optional key for summary/excerpt.",
+            key="json_summary_key",
         )
 
 if st.button("Preview extraction"):
@@ -354,28 +550,113 @@ if st.button("Preview extraction"):
 
 st.divider()
 st.subheader("Save as YAML spec")
-base_url = st.text_input("Base URL (for resolving relative links)", "https://example.com", help="Used to resolve relative links. Example: 'https://www.parapolitika.gr'.")
-start_url = st.text_input("Start URL (use {s} only for 'search')", "https://example.com/search?page=1&q={s}", help="The URL pattern of the first listing/search page. For search, include {s}. Examples: https://site.gr/news?page=1, https://site.gr/search?page=1&q={s}")
 
-mode = st.radio("Pagination", ["path","param","none"], index=1, horizontal=True, help="Pagination style:\n• path → /page/{n}\n• param → ?page=n (or any param)\n• none → single page only")
-template = st.text_input("Template (path)", "", disabled=(mode!="path"), help="For path mode. Example: '/page/{n}' or '/category/politics/page/{n}'.")
-param = st.text_input("Param (param)", "page", disabled=(mode!="param"), help="For param mode. Example: 'page' (so it becomes ?page=2).")
-# allow 0 for sites whose first page is 0
-first_page = st.number_input("First page", min_value=0, max_value=999, value=1, help="First page index on the site. Many sites start at 1,  some at 0.")
-# per_page for offset pagination
+base_url = st.text_input(
+    "Base URL (for resolving relative links)",
+    "https://example.com",
+    help="Used to resolve relative links. Example: 'https://www.parapolitika.gr'.",
+    key="base_url",
+)
+
+start_url = st.text_input(
+    "Start URL (use {s} only for 'search')",
+    "https://example.com/search?page=1&q={s}",
+    help="The URL pattern of the first listing/search page. For search, include {s}. Examples: https://site.gr/news?page=1, https://site.gr/search?page=1&q={s}",
+    key="start_url",
+)
+
+mode = st.radio(
+    "Pagination",
+    ["path","param","none"],
+    horizontal=True,
+    help="Pagination style:\n• path → /page/{n}\n• param → ?page=n (or any param)\n• none → single page only",
+    key="pagination_mode",
+)
+
+template = st.text_input(
+    "Template (path)",
+    "",
+    disabled=(mode!="path"),
+    help="For path mode. Example: '/page/{n}' or '/category/politics/page/{n}'.",
+    key="pagination_template",
+)
+
+param = st.text_input(
+    "Param (param)",
+    "page",
+    disabled=(mode!="param"),
+    help="For param mode. Example: 'page' (so it becomes ?page=2).",
+    key="pagination_param",
+)
+
+first_page = st.number_input(
+    "First page",
+    min_value=0, max_value=999, value=1,
+    help="First page index on the site. Many sites start at 1,  some at 0.",
+    key="first_page",
+)
+
 per_page = st.number_input(
     "Per-page (offset step)",
     min_value=0, max_value=5000, value=0,
     help="Leave 0 for page-number mode. For offset-style pagination (e.g., ?start=0,31,62?), set the step (31 here).",
     disabled=(mode!="param"),
+    key="per_page",
 )
-is_chronological = st.checkbox("Results are newest-first?", value=True, help="Check if results are newest first. This helps the scraper decide when to stop.")
-force_js = st.checkbox("Force Selenium (JS required)", value=True, help="Force Selenium (JS). Turn off to try Requests first and use Selenium only as a fallback.")
 
-search_term_mode = st.selectbox("Search term mode (only for 'search')", ["raw","greeklish"], index=0, help="How to transform the search term for 'search' category.\n• raw → use as typed\n• greeklish → auto-convert Greek to Latin", disabled=(category!="search"))
+is_chronological = st.checkbox(
+    "Results are newest-first?",
+    value=True,
+    help="Check if results are newest first. This helps the scraper decide when to stop.",
+    key="is_chronological",
+)
+
+force_js = st.checkbox(
+    "Force Selenium (JS required)",
+    value=True,
+    help="Force Selenium (JS). Turn off to try Requests first and use Selenium only as a fallback.",
+    key="force_js",
+)
+
+# Show the engine used in last fetch
+engine = st.session_state.get("engine")
+if engine:
+    st.caption(f"Last fetch: **{engine}**")
+else:
+    st.caption("Last fetch: (none yet — click 'Fetch page' button)")
+
+search_term_mode = st.selectbox(
+    "Search term mode (only for 'search')",
+    ["raw","greeklish"],
+    help="How to transform the search term for 'search' category.\n• raw → use as typed\n• greeklish → auto-convert Greek to Latin",
+    disabled=(category!="search"),
+    key="search_term_mode",
+)
+
 st.caption("Optional map (only for 'search'): e.g. key='Τέμπη' → value='tempi'")
-map_key = st.text_input("Map key", "", help="Optional mapping for specific search terms (key). Example: 'Τέμπη'.", disabled=(category!="search"))
-map_val = st.text_input("Map value", "", help="Mapped value (value). Example: 'tempi'. Used only in 'search' category.", disabled=(category!="search"))
+
+map_key = st.text_input(
+    "Map key",
+    "",
+    help="Optional mapping for specific search terms (key). Example: 'Τέμπη'.",
+    disabled=(category!="search"),
+    key="map_key",
+)
+map_val = st.text_input(
+    "Map value",
+    "",
+    help="Mapped value (value). Example: 'tempi'. Used only in 'search' category.",
+    disabled=(category!="search"),
+    key="map_val",
+)
+
+# Show if spec already exists (based on site key + category)
+key_preview = normalize_site_key(site_key_raw, base_url=base_url)
+fname_preview = f"{key_preview}_{category}.yaml"
+if (SCRAPER_DIR / fname_preview).exists():
+    st.info(f"Scraper spec **already exists**: {fname_preview} (Save will overwrite it)")
+else:
+    st.caption(f"Spec filename will be: {fname_preview}")
 
 if st.button("Save spec"):
     key = normalize_site_key(site_key_raw, base_url=base_url)
@@ -415,6 +696,12 @@ if st.button("Save spec"):
         if json_summary_key:
             fields_yaml["summary"] = {"type": "json_key", "query": json_summary_key}
 
+    # Decide js_required automatically:
+    # - If forced JS -> always True
+    # - If last fetch used Selenium (and it is HTML), also True
+    engine = st.session_state.get("engine")
+    auto_js = (engine == "Selenium") and (not is_json)
+
     spec_yaml = {
         "name": f"{key}_{category}",
         "base_url": base_url,
@@ -429,7 +716,7 @@ if st.button("Save spec"):
             "template_vars": {},
         },
         "max_pages": 3,
-        "js_required": bool(force_js),
+        "js_required": bool(force_js or auto_js),
         "headers": {},
         "category": category,
         "is_chronological": bool(is_chronological),

@@ -102,13 +102,15 @@ for row in (PAGES[:3], PAGES[3:6], PAGES[6:]):
     cols = st.columns(len(row))
     for col, (label, fname, icon, desc) in zip(cols, row):
         with col:
-            st.markdown(f"### {icon} {label}")
-            st.caption(desc)
-            target = page_relpath(fname)
-            if target:
-                st.page_link(page=target, label=f"Open {label}", icon="➡️")
-            else:
-                st.button(f"{label} (not found)", disabled=True)
+            # card container
+            with st.container(border=True):
+                st.markdown(f"### {icon} {label}")
+                st.caption(desc)
+                target = page_relpath(fname)
+                if target:
+                    st.page_link(page=target, label=f"Open {label}", icon="➡️")
+                else:
+                    st.button(f"{label} (not found)", disabled=True)
 
 st.divider()
 

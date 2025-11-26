@@ -24,10 +24,11 @@ pagination:
   per_page: null
   template_vars: {}
 max_pages: 3
-js_required: true
+js_required: false
 headers: {}
 category: search
 is_chronological: true
-main_container_css: null
+main_container_css: .columns.is-variable.is-3-desktop.is-4-widescreen.is-6-fullhd.is-multiline.is-mobile
 item_css: article
+response_type: html
 search_term_mode: raw
